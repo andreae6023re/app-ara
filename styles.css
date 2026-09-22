@@ -118,8 +118,6 @@
   cursor: pointer;
 }
 
-/* Lista de productos */
-
 .products-box {
   max-width: 600px;
 }
@@ -173,18 +171,13 @@
   margin-bottom: 10px;
 }
 
-/* Contador de productos */
-
 .inventory-count {
   color: #858981;
   font-size: 13px;
   margin: 15px 0 8px;
 }
 
-/* En móvil */
-
 @media(max-width:700px) {
-
   .inventory-modal-box {
     padding: 21px;
     border-radius: 19px;
@@ -201,5 +194,4 @@
   .modal-actions button {
     width: 100%;
   }
-
 }
