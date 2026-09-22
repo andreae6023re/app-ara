@@ -991,3 +991,37 @@
     width: 100%;
   }
 }
+
+
+.menu-lock {
+  display: inline-block;
+  margin-top: 5px;
+  color: #66735f;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.menu-current-lock {
+  display: inline-block;
+  margin-top: 6px;
+  color: #66735f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.menu-picker-actions {
+  flex-wrap: wrap;
+}
+
+@media(max-width:700px) {
+  .menu-picker-actions {
+    flex-direction: column-reverse;
+  }
+}
+
+
+.menu-help-text {
+  margin: -10px 0 18px;
+  color: #858981;
+  font-size: 12px;
+}

@@ -1442,7 +1442,7 @@ function renderMenuWeek(items) {
             >
               <span>${getMealLabel(type)}</span>
               <em>${item?.recipes?.name || "+ Añadir receta"}</em>
-              ${item?.is_locked ? '<b class="menu-lock">🔒</b>' : ""}
+              ${item?.is_locked ? '<b class="menu-lock">🔒 Fija</b>' : ""}
             </button>
           `;
         }).join("")}
@@ -1509,6 +1509,32 @@ async function loadMenuRecipes() {
   return data || [];
 }
 
+async function getCurrentMenuItem(date, mealType) {
+  const { data: plans, error: planError } = await supabaseClient
+    .from("meal_plans")
+    .select("id")
+    .eq("week_start", dateToISO(menuWeekStart))
+    .limit(1);
+
+  if (planError || !plans?.[0]) {
+    return { item: null, plan: null, error: planError };
+  }
+
+  const { data: items, error } = await supabaseClient
+    .from("meal_plan_items")
+    .select("id, recipe_id, is_locked")
+    .eq("meal_plan_id", plans[0].id)
+    .eq("date", date)
+    .eq("meal_type", mealType)
+    .limit(1);
+
+  return {
+    item: items?.[0] || null,
+    plan: plans[0],
+    error
+  };
+}
+
 async function openMenuRecipePicker(date, mealType) {
   selectedMenuSlot = { date, mealType };
 
@@ -1516,10 +1542,19 @@ async function openMenuRecipePicker(date, mealType) {
     menuRecipesCache = await loadMenuRecipes();
   }
 
+  const current = await getCurrentMenuItem(date, mealType);
+
+  if (current.error) {
+    console.error("Error leyendo el hueco del menú:", current.error);
+  }
+
   document.querySelectorAll(".menu-picker-modal").forEach(modal => modal.remove());
 
   const modal = document.createElement("div");
   modal.className = "menu-picker-modal open";
+
+  const hasRecipe = !!current.item?.recipe_id;
+  const isLocked = !!current.item?.is_locked;
 
   modal.innerHTML = `
     <div class="menu-picker-overlay"></div>
@@ -1529,6 +1564,7 @@ async function openMenuRecipePicker(date, mealType) {
         <div>
           <small>${getMealLabel(mealType).toUpperCase()}</small>
           <h2>Elegir receta</h2>
+          ${isLocked ? '<span class="menu-current-lock">🔒 Receta fijada</span>' : ""}
         </div>
         <button type="button" class="modal-close menu-picker-close">×</button>
       </div>
@@ -1541,10 +1577,21 @@ async function openMenuRecipePicker(date, mealType) {
 
       <div class="menu-recipe-options"></div>
 
-      <div class="modal-actions">
+      <div class="modal-actions menu-picker-actions">
         <button type="button" class="secondary menu-remove-recipe">
           Vaciar
         </button>
+
+        ${
+          hasRecipe
+            ? `
+              <button type="button" class="secondary menu-lock-recipe">
+                ${isLocked ? "🔓 Desbloquear" : "🔒 Fijar receta"}
+              </button>
+            `
+            : ""
+        }
+
         <button type="button" class="secondary menu-picker-cancel">
           Cerrar
         </button>
@@ -1625,6 +1672,43 @@ async function openMenuRecipePicker(date, mealType) {
     );
     modal.remove();
   });
+
+  const lockButton = modal.querySelector(".menu-lock-recipe");
+  if (lockButton) {
+    lockButton.addEventListener("click", async () => {
+      await toggleMenuLock(
+        selectedMenuSlot.date,
+        selectedMenuSlot.mealType
+      );
+      modal.remove();
+    });
+  }
+}
+
+async function toggleMenuLock(date, mealType) {
+  const current = await getCurrentMenuItem(date, mealType);
+
+  if (current.error) {
+    alert("No se pudo leer el estado de la receta.\n\n" + current.error.message);
+    return;
+  }
+
+  if (!current.item) return;
+
+  const { error } = await supabaseClient
+    .from("meal_plan_items")
+    .update({
+      is_locked: !current.item.is_locked
+    })
+    .eq("id", current.item.id);
+
+  if (error) {
+    console.error("Error cambiando bloqueo:", error);
+    alert("No se pudo cambiar el bloqueo.\n\n" + error.message);
+    return;
+  }
+
+  await loadMenu();
 }
 
 async function assignRecipeToMenu(recipeId, date, mealType) {
