@@ -21,3 +21,18 @@ function toggleMenu(){
   const open=document.getElementById("sidebar").classList.toggle("open");
   document.getElementById("overlay").style.display=open?"block":"none";
 }
+async function testSupabaseConnection() {
+  const { data, error } = await supabaseClient
+    .from("ingredients")
+    .select("id, name")
+    .limit(1);
+
+  if (error) {
+    console.error("❌ Error conectando con Supabase:", error);
+    return;
+  }
+
+  console.log("✅ Supabase conectado correctamente:", data);
+}
+
+testSupabaseConnection();
