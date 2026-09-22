@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#8d9b86">
+  <meta name="description" content="ARA · Comidas">
+  <title>ARA · Comidas</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <div><strong>ARA</strong><span>Comidas</span></div>
+        <button class="close-menu" onclick="toggleMenu()">×</button>
+      </div>
+      <nav>
+        <button class="nav active" data-page="inicio" onclick="showPage('inicio')">⌂ <span>Inicio</span></button>
+        <button class="nav" data-page="menu" onclick="showPage('menu')">▣ <span>Menú</span></button>
+        <button class="nav" data-page="recetas" onclick="showPage('recetas')">▤ <span>Recetas</span></button>
+        <button class="nav" data-page="inventario" onclick="showPage('inventario')">▦ <span>Inventario</span></button>
+        <button class="nav" data-page="compra" onclick="showPage('compra')">□ <span>Lista de compra</span></button>
+      </nav>
+      <div class="sidebar-bottom">⚙ <span>Configuración</span></div>
+    </aside>
+
+    <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+
+    <main class="main">
+      <header>
+        <button class="mobile-menu" onclick="toggleMenu()">☰</button>
+        <div><small>ARA · COMIDAS</small><h1 id="page-title">Hola 👋</h1></div>
+      </header>
+
+      <section id="inicio" class="page active-page">
+        <div class="hero">
+          <div>
+            <small>TU SEMANA</small>
+            <h2>Organizar la comida,<br>sin complicaciones.</h2>
+            <p>Planifica, aprovecha lo que tienes y ten la compra bajo control.</p>
+          </div>
+          <div class="hero-symbol">✦</div>
+        </div>
+        <div class="section-title"><small>ACCESOS RÁPIDOS</small><h2>¿Qué quieres hacer?</h2></div>
+        <div class="quick-grid">
+          <button onclick="showPage('menu')"><b>▣</b><span><strong>Planificar menú</strong><em>Organiza esta semana</em></span>›</button>
+          <button onclick="showPage('recetas')"><b>▤</b><span><strong>Ver recetas</strong><em>Busca qué cocinar</em></span>›</button>
+          <button onclick="showPage('inventario')"><b>▦</b><span><strong>Revisar inventario</strong><em>Mira qué tienes</em></span>›</button>
+          <button onclick="showPage('compra')"><b>□</b><span><strong>Lista de compra</strong><em>Añade lo que falta</em></span>›</button>
+        </div>
+      </section>
+
+      <section id="menu" class="page">
+        <div class="page-head"><div><small>SEMANA</small><h2>Menú semanal</h2></div><button class="primary">✦ Generar menú</button></div>
+        <div class="week">
+          <article><h3>Lunes</h3><div class="meal">Desayuno<em>+ Añadir</em></div><div class="meal">Comida<em>+ Añadir</em></div><div class="meal">Cena<em>+ Añadir</em></div></article>
+          <article><h3>Martes</h3><div class="meal">Desayuno<em>+ Añadir</em></div><div class="meal">Comida<em>+ Añadir</em></div><div class="meal">Cena<em>+ Añadir</em></div></article>
+          <article><h3>Miércoles</h3><div class="meal">Desayuno<em>+ Añadir</em></div><div class="meal">Comida<em>+ Añadir</em></div><div class="meal">Cena<em>+ Añadir</em></div></article>
+          <article><h3>Jueves</h3><div class="meal">Desayuno<em>+ Añadir</em></div><div class="meal">Comida<em>+ Añadir</em></div><div class="meal">Cena<em>+ Añadir</em></div></article>
+          <article><h3>Viernes</h3><div class="meal">Desayuno<em>+ Añadir</em></div><div class="meal">Comida<em>+ Añadir</em></div><div class="meal">Cena<em>+ Añadir</em></div></article>
+          <article><h3>Sábado</h3><div class="meal">Desayuno<em>+ Añadir</em></div><div class="meal">Comida<em>+ Añadir</em></div><div class="meal">Cena<em>+ Añadir</em></div></article>
+          <article><h3>Domingo</h3><div class="meal">Desayuno<em>+ Añadir</em></div><div class="meal">Comida<em>+ Añadir</em></div><div class="meal">Cena<em>+ Añadir</em></div></article>
+        </div>
+      </section>
+
+      <section id="recetas" class="page">
+        <div class="page-head"><div><small>RECETARIO</small><h2>Recetas</h2></div><button class="primary">＋ Nueva receta</button></div>
+        <div class="chips"><button class="chip selected">Todas</button><button class="chip">Comidas</button><button class="chip">Cenas</button><button class="chip">Desayunos</button><button class="chip">Dulces</button><button class="chip">Pan</button></div>
+        <div class="empty"><div class="empty-icon">▤</div><h3>Aún no hay recetas</h3><p>Cuando conectemos Supabase podremos guardar aquí todo tu recetario.</p><button class="secondary">＋ Añadir receta</button></div>
+      </section>
+
+      <section id="inventario" class="page">
+        <div class="page-head"><div><small>INVENTARIO</small><h2>Lo que tienes</h2></div><button class="primary">＋ Añadir producto</button></div>
+        <div class="inventory">
+          <article><div class="emoji">🥫</div><h3>Despensa</h3><p>Productos secos, conservas y básicos.</p><button>Ver productos →</button></article>
+          <article><div class="emoji">🥬</div><h3>Frigorífico</h3><p>Lo que tienes fresco.</p><button>Ver productos →</button></article>
+          <article><div class="emoji">🧊</div><h3>Congelador</h3><p>Tus productos congelados.</p><button>Ver productos →</button></article>
+        </div>
+      </section>
+
+      <section id="compra" class="page">
+        <div class="page-head"><div><small>COMPRA</small><h2>Lista de compra</h2></div><button class="primary">＋ Añadir</button></div>
+        <div class="empty"><div class="empty-icon">□</div><h3>Tu lista está vacía</h3><p>Los ingredientes que falten para tu menú podrán aparecer aquí automáticamente.</p><button class="secondary">＋ Añadir producto</button></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button data-page="inicio" onclick="showPage('inicio')">⌂<span>Inicio</span></button>
+      <button data-page="menu" onclick="showPage('menu')">▣<span>Menú</span></button>
+      <button data-page="recetas" onclick="showPage('recetas')">▤<span>Recetas</span></button>
+      <button data-page="inventario" onclick="showPage('inventario')">▦<span>Inventario</span></button>
+      <button data-page="compra" onclick="showPage('compra')">□<span>Compra</span></button>
+    </nav>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
