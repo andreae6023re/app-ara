@@ -1,0 +1,11 @@
+{
+  "name": "ARA · Comidas",
+  "short_name": "ARA",
+  "description": "Planificador de comidas, recetas, inventario y compra.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f2ec",
+  "theme_color": "#8d9b86",
+  "lang": "es",
+  "icons": []
+}
