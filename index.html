@@ -71,8 +71,29 @@
       </section>
 
       <section id="menu" class="page">
-        <div class="page-head"><div><small>SEMANA</small><h2>Menú semanal</h2></div><button class="primary">✦ Generar menú</button></div>
-        <p class="menu-help-text" id="menu-generation-note">Las recetas que elijas manualmente quedan fijadas 🔒. El generador solo rellenará o cambiará las que no estén fijadas.</p><div class="week"></div>
+        <div class="page-head menu-page-head">
+          <div>
+            <small>SEMANA</small>
+            <h2>Menú semanal</h2>
+          </div>
+
+          <div class="menu-header-actions">
+            <div class="menu-week-navigation">
+              <button type="button" class="secondary menu-week-arrow" id="menu-prev-week" title="Semana anterior">‹</button>
+              <button type="button" class="secondary menu-current-week" id="menu-current-week">Esta semana</button>
+              <button type="button" class="secondary menu-week-arrow" id="menu-next-week" title="Semana siguiente">›</button>
+            </div>
+            <button type="button" class="primary menu-generate-button">✦ Generar menú</button>
+          </div>
+        </div>
+
+        <div class="menu-week-info">
+          <span id="menu-week-label"></span>
+          <span>Haz clic en el día para ver el detalle.</span>
+        </div>
+
+        <p class="menu-help-text" id="menu-generation-note">Las recetas que elijas manualmente quedan fijadas 🔒. El generador solo rellenará o cambiará las que no estén fijadas.</p>
+        <div class="week"></div>
       </section>
 
       <section id="recetas" class="page">

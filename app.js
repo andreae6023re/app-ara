@@ -1514,6 +1514,33 @@ function formatWeekLabel(start) {
   return `${start.toLocaleDateString("es-ES", options)} – ${end.toLocaleDateString("es-ES", options)}`;
 }
 
+function isCurrentMenuWeek() {
+  return dateToISO(menuWeekStart) === dateToISO(getMonday(new Date()));
+}
+
+function updateMenuWeekNavigation() {
+  const label = document.getElementById("menu-week-label");
+  if (label) label.textContent = formatWeekLabel(menuWeekStart);
+
+  const currentButton = document.getElementById("menu-current-week");
+  if (currentButton) {
+    currentButton.textContent = isCurrentMenuWeek() ? "Esta semana" : "Volver a esta semana";
+    currentButton.disabled = isCurrentMenuWeek();
+  }
+}
+
+async function changeMenuWeek(amount) {
+  menuWeekStart = addDays(menuWeekStart, amount * 7);
+  updateMenuWeekNavigation();
+  await loadMenu();
+}
+
+async function goToCurrentMenuWeek() {
+  menuWeekStart = getMonday(new Date());
+  updateMenuWeekNavigation();
+  await loadMenu();
+}
+
 function formatDayName(date) {
   return date.toLocaleDateString("es-ES", {
     weekday: "long"
@@ -1602,10 +1629,15 @@ function renderMenuWeek(items) {
 
     return `
       <article class="menu-day-card">
-        <div class="menu-day-head">
+        <button
+          type="button"
+          class="menu-day-head"
+          data-day-detail="${iso}"
+          title="Ver detalle del día"
+        >
           <strong>${capitalize(formatDayName(date))}</strong>
           <span>${date.getDate()}/${date.getMonth() + 1}</span>
-        </div>
+        </button>
 
         ${types.map(type => {
           const item = items.find(row =>
@@ -1629,6 +1661,12 @@ function renderMenuWeek(items) {
     `;
   }).join("");
 
+  grid.querySelectorAll(".menu-day-head").forEach(button => {
+    button.addEventListener("click", () => {
+      openMenuDayDetail(button.dataset.dayDetail);
+    });
+  });
+
   grid.querySelectorAll(".menu-meal-slot").forEach(button => {
     button.addEventListener("click", () => {
       openMenuRecipePicker(
@@ -1638,15 +1676,211 @@ function renderMenuWeek(items) {
     });
   });
 
-  const title = document.querySelector("#menu .page-head h2");
-  if (title) title.textContent = "Menú semanal";
-
-  const label = document.querySelector("#menu .page-head small");
-  if (label) label.textContent = formatWeekLabel(menuWeekStart);
+  updateMenuWeekNavigation();
 }
 
 function capitalize(value) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+async function openMenuDayDetail(date) {
+  const { data: plans, error: planError } = await supabaseClient
+    .from("meal_plans")
+    .select("id")
+    .eq("week_start", dateToISO(menuWeekStart))
+    .limit(1);
+
+  if (planError) {
+    console.error("Error buscando el menú del día:", planError);
+    alert("No se pudo cargar el detalle del día.\n\n" + planError.message);
+    return;
+  }
+
+  const plan = plans?.[0];
+  let items = [];
+
+  if (plan) {
+    const { data, error } = await supabaseClient
+      .from("meal_plan_items")
+      .select(`
+        id,
+        date,
+        meal_type,
+        recipe_id,
+        is_locked,
+        notes,
+        recipes (
+          id,
+          name,
+          description,
+          preparation,
+          servings,
+          prep_time,
+          cook_time,
+          temperature,
+          image_url,
+          meal_types,
+          fun_recipe,
+          is_freezable,
+          do_not_suggest
+        )
+      `)
+      .eq("meal_plan_id", plan.id)
+      .eq("date", date)
+      .in("meal_type", ["comida", "cena"])
+      .order("meal_type");
+
+    if (error) {
+      console.error("Error cargando el detalle del día:", error);
+      alert("No se pudo cargar el detalle del día.\n\n" + error.message);
+      return;
+    }
+
+    items = data || [];
+  }
+
+  const recipesWithIngredients = await Promise.all(
+    items
+      .filter(item => item.recipe_id)
+      .map(async item => {
+        const { data: ingredients } = await supabaseClient
+          .from("recipe_ingredients")
+          .select(`
+            quantity,
+            unit,
+            notes,
+            ingredients (
+              name
+            )
+          `)
+          .eq("recipe_id", item.recipe_id);
+
+        return {
+          ...item,
+          ingredients: ingredients || []
+        };
+      })
+  );
+
+  const enrichedByMeal = new Map(
+    recipesWithIngredients.map(item => [item.meal_type, item])
+  );
+
+  const dateObject = new Date(`${date}T00:00:00`);
+  const prettyDate = capitalize(dateObject.toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long"
+  }));
+
+  document.querySelectorAll(".menu-day-detail-modal").forEach(modal => modal.remove());
+
+  const modal = document.createElement("div");
+  modal.className = "menu-day-detail-modal open";
+
+  const mealHtml = ["comida", "cena"].map(type => {
+    const item = enrichedByMeal.get(type);
+    const recipe = item?.recipes;
+
+    if (!recipe) {
+      return `
+        <section class="menu-day-detail-meal is-empty">
+          <div class="menu-day-detail-meal-head">
+            <span>${type === "comida" ? "🍴" : "🌙"}</span>
+            <div>
+              <small>${getMealLabel(type)}</small>
+              <h3>Sin receta</h3>
+            </div>
+          </div>
+          <p>No hay ninguna receta asignada para este momento.</p>
+        </section>
+      `;
+    }
+
+    const meta = [];
+    if (recipe.servings) meta.push(`${recipe.servings} ración${recipe.servings === 1 ? "" : "es"}`);
+    if (recipe.prep_time) meta.push(`${recipe.prep_time} min preparación`);
+    if (recipe.cook_time) meta.push(`${recipe.cook_time} min cocción`);
+    if (recipe.temperature) meta.push(`${recipe.temperature} °C`);
+
+    return `
+      <section class="menu-day-detail-meal">
+        <div class="menu-day-detail-meal-head">
+          <span>${type === "comida" ? "🍴" : "🌙"}</span>
+          <div>
+            <small>${getMealLabel(type)}</small>
+            <h3>${escapeHtml(recipe.name)}</h3>
+          </div>
+          ${item.is_locked ? '<b class="menu-day-detail-lock">🔒 Fija</b>' : ""}
+        </div>
+
+        ${recipe.description ? `<p class="menu-day-detail-description">${escapeHtml(recipe.description)}</p>` : ""}
+
+        ${meta.length ? `
+          <div class="menu-day-detail-meta">
+            ${meta.map(value => `<span>${escapeHtml(value)}</span>`).join("")}
+          </div>
+        ` : ""}
+
+        <div class="menu-day-detail-subsection">
+          <h4>Preparación</h4>
+          ${recipe.preparation
+            ? `<div class="menu-day-detail-preparation">${escapeHtml(recipe.preparation).replace(/\n/g, "<br>")}</div>`
+            : `<p class="menu-day-detail-muted">No hay preparación añadida.</p>`}
+        </div>
+
+        <div class="menu-day-detail-subsection">
+          <h4>Ingredientes</h4>
+          ${item.ingredients.length
+            ? `<div class="menu-day-detail-ingredients">${item.ingredients.map(ingredient => `
+                <div>
+                  <span>${escapeHtml(ingredient.ingredients?.name || "Ingrediente")}</span>
+                  <strong>${ingredient.quantity !== null && ingredient.quantity !== undefined ? escapeHtml(String(ingredient.quantity)) : ""} ${escapeHtml(ingredient.unit || "")}</strong>
+                </div>
+              `).join("")}</div>`
+            : `<p class="menu-day-detail-muted">No hay ingredientes añadidos.</p>`}
+        </div>
+
+        <div class="menu-day-detail-actions">
+          <button type="button" class="secondary menu-day-open-recipe" data-recipe-id="${recipe.id}">Ver ficha completa</button>
+        </div>
+      </section>
+    `;
+  }).join("");
+
+  modal.innerHTML = `
+    <div class="menu-day-detail-overlay"></div>
+    <div class="menu-day-detail-box">
+      <div class="menu-day-detail-top">
+        <div>
+          <small>DETALLE DEL DÍA</small>
+          <h2>${escapeHtml(prettyDate)}</h2>
+        </div>
+        <button type="button" class="modal-close menu-day-detail-close">×</button>
+      </div>
+      <div class="menu-day-detail-grid">
+        ${mealHtml}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="secondary menu-day-detail-close-bottom">Cerrar</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  modal.querySelector(".menu-day-detail-close").addEventListener("click", close);
+  modal.querySelector(".menu-day-detail-close-bottom").addEventListener("click", close);
+  modal.querySelector(".menu-day-detail-overlay").addEventListener("click", close);
+
+  modal.querySelectorAll(".menu-day-open-recipe").forEach(button => {
+    button.addEventListener("click", () => {
+      const recipeId = Number(button.dataset.recipeId);
+      close();
+      openRecipeDetail(recipeId);
+    });
+  });
 }
 
 async function getOrCreateMealPlan() {
@@ -2168,11 +2402,22 @@ function setupMenuControls() {
   const menuPage = document.getElementById("menu");
   if (!menuPage) return;
 
-  const generateButton = menuPage.querySelector(".page-head .primary");
+  const generateButton = menuPage.querySelector(".menu-generate-button");
   if (generateButton) {
     generateButton.textContent = "✦ Generar menú";
     generateButton.onclick = generateWeeklyMenu;
   }
+
+  const previousButton = document.getElementById("menu-prev-week");
+  if (previousButton) previousButton.onclick = () => changeMenuWeek(-1);
+
+  const nextButton = document.getElementById("menu-next-week");
+  if (nextButton) nextButton.onclick = () => changeMenuWeek(1);
+
+  const currentButton = document.getElementById("menu-current-week");
+  if (currentButton) currentButton.onclick = goToCurrentMenuWeek;
+
+  updateMenuWeekNavigation();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
