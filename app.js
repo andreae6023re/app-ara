@@ -39,6 +39,10 @@ function showPage(id) {
     loadInventory();
   }
 
+  if (id === "menu") {
+    loadMenu();
+  }
+
   if (id === "recetas") {
     setupRecipeButtons();
     loadRecipes();
@@ -1246,6 +1250,427 @@ function normalizeRecipeFilters() {
   `;
 }
 
+
+
+/* =========================================================
+   MENÚ SEMANAL
+   ========================================================= */
+
+let menuWeekStart = getMonday(new Date());
+let selectedMenuSlot = null;
+let menuRecipesCache = [];
+
+function dateToISO(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getMonday(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function addDays(date, amount) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + amount);
+  return d;
+}
+
+function formatWeekLabel(start) {
+  const end = addDays(start, 6);
+  const options = { day: "numeric", month: "short" };
+  return `${start.toLocaleDateString("es-ES", options)} – ${end.toLocaleDateString("es-ES", options)}`;
+}
+
+function formatDayName(date) {
+  return date.toLocaleDateString("es-ES", {
+    weekday: "long"
+  });
+}
+
+function getMealLabel(type) {
+  return {
+    desayuno: "Desayuno",
+    comida: "Comida",
+    cena: "Cena"
+  }[type] || type;
+}
+
+async function loadMenu() {
+  const menuPage = document.getElementById("menu");
+  if (!menuPage) return;
+
+  const { data: plans, error: planError } = await supabaseClient
+    .from("meal_plans")
+    .select("id, week_start")
+    .eq("week_start", dateToISO(menuWeekStart))
+    .limit(1);
+
+  if (planError) {
+    console.error("Error cargando menú:", planError);
+    renderMenuError(planError);
+    return;
+  }
+
+  const plan = plans?.[0] || null;
+  let items = [];
+
+  if (plan) {
+    const result = await supabaseClient
+      .from("meal_plan_items")
+      .select(`
+        id,
+        date,
+        meal_type,
+        recipe_id,
+        is_locked,
+        notes,
+        recipes (
+          id,
+          name
+        )
+      `)
+      .eq("meal_plan_id", plan.id)
+      .order("date")
+      .order("meal_type");
+
+    if (result.error) {
+      console.error("Error cargando comidas del menú:", result.error);
+      renderMenuError(result.error);
+      return;
+    }
+
+    items = result.data || [];
+  }
+
+  renderMenuWeek(items);
+}
+
+function renderMenuError(error) {
+  const grid = document.querySelector("#menu .week");
+  if (!grid) return;
+
+  grid.innerHTML = `
+    <div class="empty">
+      <div class="empty-icon">!</div>
+      <h3>No se pudo cargar el menú</h3>
+      <p>${escapeHtml(error.message || "Error desconocido")}</p>
+    </div>
+  `;
+}
+
+function renderMenuWeek(items) {
+  const grid = document.querySelector("#menu .week");
+  if (!grid) return;
+
+  const types = ["desayuno", "comida", "cena"];
+
+  grid.innerHTML = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(menuWeekStart, index);
+    const iso = dateToISO(date);
+
+    return `
+      <article class="menu-day-card">
+        <div class="menu-day-head">
+          <strong>${capitalize(formatDayName(date))}</strong>
+          <span>${date.getDate()}/${date.getMonth() + 1}</span>
+        </div>
+
+        ${types.map(type => {
+          const item = items.find(row =>
+            row.date === iso && row.meal_type === type
+          );
+
+          return `
+            <button
+              type="button"
+              class="menu-meal-slot ${item?.recipe_id ? "has-recipe" : ""}"
+              data-date="${iso}"
+              data-meal-type="${type}"
+            >
+              <span>${getMealLabel(type)}</span>
+              <em>${item?.recipes?.name || "+ Añadir receta"}</em>
+              ${item?.is_locked ? '<b class="menu-lock">🔒</b>' : ""}
+            </button>
+          `;
+        }).join("")}
+      </article>
+    `;
+  }).join("");
+
+  grid.querySelectorAll(".menu-meal-slot").forEach(button => {
+    button.addEventListener("click", () => {
+      openMenuRecipePicker(
+        button.dataset.date,
+        button.dataset.mealType
+      );
+    });
+  });
+
+  const title = document.querySelector("#menu .page-head h2");
+  if (title) title.textContent = "Menú semanal";
+
+  const label = document.querySelector("#menu .page-head small");
+  if (label) label.textContent = formatWeekLabel(menuWeekStart);
+}
+
+function capitalize(value) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+async function getOrCreateMealPlan() {
+  const weekStart = dateToISO(menuWeekStart);
+
+  const { data: existing, error } = await supabaseClient
+    .from("meal_plans")
+    .select("id, week_start")
+    .eq("week_start", weekStart)
+    .limit(1);
+
+  if (error) return { plan: null, error };
+
+  if (existing?.[0]) {
+    return { plan: existing[0], error: null };
+  }
+
+  const { data, error: insertError } = await supabaseClient
+    .from("meal_plans")
+    .insert({ week_start: weekStart })
+    .select()
+    .single();
+
+  return { plan: data, error: insertError };
+}
+
+async function loadMenuRecipes() {
+  const { data, error } = await supabaseClient
+    .from("recipes")
+    .select("id, name, description, do_not_suggest, fun_recipe, is_freezable")
+    .eq("do_not_suggest", false)
+    .order("name");
+
+  if (error) {
+    console.error("Error cargando recetas para menú:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+async function openMenuRecipePicker(date, mealType) {
+  selectedMenuSlot = { date, mealType };
+
+  if (!menuRecipesCache.length) {
+    menuRecipesCache = await loadMenuRecipes();
+  }
+
+  document.querySelectorAll(".menu-picker-modal").forEach(modal => modal.remove());
+
+  const modal = document.createElement("div");
+  modal.className = "menu-picker-modal open";
+
+  modal.innerHTML = `
+    <div class="menu-picker-overlay"></div>
+
+    <div class="menu-picker-box">
+      <div class="inventory-modal-header">
+        <div>
+          <small>${getMealLabel(mealType).toUpperCase()}</small>
+          <h2>Elegir receta</h2>
+        </div>
+        <button type="button" class="modal-close menu-picker-close">×</button>
+      </div>
+
+      <input
+        type="search"
+        class="menu-recipe-search"
+        placeholder="Buscar receta…"
+      >
+
+      <div class="menu-recipe-options"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary menu-remove-recipe">
+          Vaciar
+        </button>
+        <button type="button" class="secondary menu-picker-cancel">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const renderOptions = (query = "") => {
+    const text = query.trim().toLowerCase();
+
+    const recipes = menuRecipesCache.filter(recipe =>
+      !text ||
+      recipe.name.toLowerCase().includes(text) ||
+      (recipe.description || "").toLowerCase().includes(text)
+    );
+
+    const container = modal.querySelector(".menu-recipe-options");
+
+    if (!recipes.length) {
+      container.innerHTML = `
+        <div class="products-empty">
+          <div>🔎</div>
+          <p>No se encontraron recetas.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = recipes.map(recipe => `
+      <button
+        type="button"
+        class="menu-recipe-option"
+        data-id="${recipe.id}"
+      >
+        <strong>${escapeHtml(recipe.name)}</strong>
+        <span>${escapeHtml(recipe.description || "")}</span>
+      </button>
+    `).join("");
+
+    container.querySelectorAll(".menu-recipe-option").forEach(option => {
+      option.addEventListener("click", async () => {
+        await assignRecipeToMenu(
+          Number(option.dataset.id),
+          selectedMenuSlot.date,
+          selectedMenuSlot.mealType
+        );
+        modal.remove();
+      });
+    });
+  };
+
+  renderOptions();
+
+  modal.querySelector(".menu-recipe-search").addEventListener("input", event => {
+    renderOptions(event.target.value);
+  });
+
+  const close = () => modal.remove();
+
+  modal.querySelector(".menu-picker-close").addEventListener("click", close);
+  modal.querySelector(".menu-picker-cancel").addEventListener("click", close);
+  modal.querySelector(".menu-picker-overlay").addEventListener("click", close);
+
+  modal.querySelector(".menu-remove-recipe").addEventListener("click", async () => {
+    await removeRecipeFromMenu(
+      selectedMenuSlot.date,
+      selectedMenuSlot.mealType
+    );
+    modal.remove();
+  });
+}
+
+async function assignRecipeToMenu(recipeId, date, mealType) {
+  const { plan, error } = await getOrCreateMealPlan();
+
+  if (error) {
+    console.error("Error creando menú:", error);
+    alert("No se pudo preparar el menú.\n\n" + error.message);
+    return;
+  }
+
+  const { data: existing, error: existingError } = await supabaseClient
+    .from("meal_plan_items")
+    .select("id")
+    .eq("meal_plan_id", plan.id)
+    .eq("date", date)
+    .eq("meal_type", mealType)
+    .limit(1);
+
+  if (existingError) {
+    alert("No se pudo comprobar la comida.\n\n" + existingError.message);
+    return;
+  }
+
+  let saveError = null;
+
+  if (existing?.[0]) {
+    const result = await supabaseClient
+      .from("meal_plan_items")
+      .update({
+        recipe_id: recipeId
+      })
+      .eq("id", existing[0].id);
+
+    saveError = result.error;
+  } else {
+    const result = await supabaseClient
+      .from("meal_plan_items")
+      .insert({
+        meal_plan_id: plan.id,
+        date,
+        meal_type: mealType,
+        recipe_id: recipeId,
+        is_locked: true
+      });
+
+    saveError = result.error;
+  }
+
+  if (saveError) {
+    console.error("Error guardando comida:", saveError);
+    alert("No se pudo guardar la receta en el menú.\n\n" + saveError.message);
+    return;
+  }
+
+  await loadMenu();
+}
+
+async function removeRecipeFromMenu(date, mealType) {
+  const { data: plans, error: planError } = await supabaseClient
+    .from("meal_plans")
+    .select("id")
+    .eq("week_start", dateToISO(menuWeekStart))
+    .limit(1);
+
+  if (planError || !plans?.[0]) return;
+
+  const { error } = await supabaseClient
+    .from("meal_plan_items")
+    .delete()
+    .eq("meal_plan_id", plans[0].id)
+    .eq("date", date)
+    .eq("meal_type", mealType);
+
+  if (error) {
+    console.error("Error eliminando comida:", error);
+    alert("No se pudo vaciar ese hueco del menú.\n\n" + error.message);
+    return;
+  }
+
+  await loadMenu();
+}
+
+function setupMenuControls() {
+  const menuPage = document.getElementById("menu");
+  if (!menuPage) return;
+
+  const generateButton = menuPage.querySelector(".page-head .primary");
+  if (generateButton) {
+    generateButton.textContent = "＋ Elegir recetas";
+    generateButton.onclick = () => {
+      document.querySelector("#menu .week article .menu-meal-slot")?.click();
+    };
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  setupMenuControls();
+  loadMenu();
+});
 
 /* =========================================================
    IMPORTACIÓN DE RECETAS
