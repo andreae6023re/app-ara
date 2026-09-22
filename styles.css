@@ -15,7 +15,8 @@
   padding: 20px;
 }
 
-#inventory-modal.open {
+#inventory-modal.open,
+.inventory-products-modal.open {
   display: flex;
 }
 
