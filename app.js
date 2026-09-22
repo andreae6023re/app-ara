@@ -1,3 +1,11 @@
+const SUPABASE_URL = "https://rxkkwsnxgmbzveaipkob.supabase.co";
+
+const SUPABASE_KEY = "sb_publishable_cqZyBl4hAEI77KE39TFilg_In1ZCwzl";
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 const titles={inicio:"Hola 👋",menu:"Tu menú",recetas:"Recetario",inventario:"Inventario",compra:"Lista de compra"};
 function showPage(id){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active-page"));
