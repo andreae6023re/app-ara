@@ -548,6 +548,16 @@ function createRecipeModal() {
         </label>
 
         <div class="recipe-checks">
+          <label class="recipe-check meal-type-check">
+            <input id="recipe-meal-comida" type="checkbox">
+            <span>🍴 Comida</span>
+          </label>
+
+          <label class="recipe-check meal-type-check">
+            <input id="recipe-meal-cena" type="checkbox">
+            <span>🌙 Cena</span>
+          </label>
+
           <label class="recipe-check">
             <input id="recipe-fun" type="checkbox">
             <span>🍿 Receta divertida</span>
@@ -613,6 +623,8 @@ function resetRecipeModal() {
   document.getElementById("recipe-modal-label").textContent = "NUEVA RECETA";
   document.getElementById("recipe-modal-title").textContent = "Nueva receta";
   document.getElementById("save-recipe-button").textContent = "Guardar receta";
+  document.getElementById("recipe-meal-comida").checked = true;
+  document.getElementById("recipe-meal-cena").checked = true;
 
   document.getElementById("recipe-ingredients-list").innerHTML = "";
   addRecipeIngredientRow();
@@ -717,6 +729,14 @@ async function openEditRecipeModal(recipeId) {
   document.getElementById("recipe-cook-time").value = recipe.cook_time ?? "";
   document.getElementById("recipe-temperature").value = recipe.temperature ?? "";
   document.getElementById("recipe-image").value = recipe.image_url || "";
+
+  const recipeMealTypes = Array.isArray(recipe.meal_types) && recipe.meal_types.length
+    ? recipe.meal_types
+    : ["comida", "cena"];
+
+  document.getElementById("recipe-meal-comida").checked = recipeMealTypes.includes("comida");
+  document.getElementById("recipe-meal-cena").checked = recipeMealTypes.includes("cena");
+
   document.getElementById("recipe-fun").checked = !!recipe.fun_recipe;
   document.getElementById("recipe-freezable").checked = !!recipe.is_freezable;
   document.getElementById("recipe-dont-suggest").checked = !!recipe.do_not_suggest;
@@ -799,6 +819,15 @@ async function saveRecipe(event) {
     return;
   }
 
+  const mealTypes = [];
+  if (document.getElementById("recipe-meal-comida").checked) mealTypes.push("comida");
+  if (document.getElementById("recipe-meal-cena").checked) mealTypes.push("cena");
+
+  if (!mealTypes.length) {
+    alert("Marca si la receta es para comida, cena o ambas.");
+    return;
+  }
+
   const payload = {
     name,
     description: document.getElementById("recipe-description").value.trim() || null,
@@ -816,6 +845,7 @@ async function saveRecipe(event) {
       ? Number(document.getElementById("recipe-temperature").value)
       : null,
     image_url: document.getElementById("recipe-image").value.trim() || null,
+    meal_types: mealTypes,
     fun_recipe: document.getElementById("recipe-fun").checked,
     is_freezable: document.getElementById("recipe-freezable").checked,
     do_not_suggest: document.getElementById("recipe-dont-suggest").checked
@@ -907,6 +937,7 @@ async function loadRecipes() {
       cook_time,
       temperature,
       image_url,
+      meal_types,
       fun_recipe,
       is_freezable,
       do_not_suggest,
@@ -941,6 +972,12 @@ function renderRecipesError(error) {
 function recipeMatchesFilter(recipe) {
   if (currentRecipeFilter === "todas") return true;
 
+  const types = Array.isArray(recipe.meal_types) && recipe.meal_types.length
+    ? recipe.meal_types
+    : ["comida", "cena"];
+
+  if (currentRecipeFilter === "comidas") return types.includes("comida");
+  if (currentRecipeFilter === "cenas") return types.includes("cena");
   if (currentRecipeFilter === "divertidas") return !!recipe.fun_recipe;
   if (currentRecipeFilter === "congelables") return !!recipe.is_freezable;
   if (currentRecipeFilter === "no-sugerir") return !!recipe.do_not_suggest;
@@ -955,6 +992,12 @@ function recipeCardHtml(recipe) {
   if (recipe.cook_time) meta.push(`🔥 ${recipe.cook_time} min`);
   if (recipe.servings) meta.push(`🍽 ${recipe.servings} ración${recipe.servings === 1 ? "" : "es"}`);
 
+  const recipeTypes = Array.isArray(recipe.meal_types) && recipe.meal_types.length
+    ? recipe.meal_types
+    : ["comida", "cena"];
+
+  if (recipeTypes.includes("comida")) meta.push("🍴 Comida");
+  if (recipeTypes.includes("cena")) meta.push("🌙 Cena");
   if (recipe.fun_recipe) meta.push("🍿 Divertida");
   if (recipe.is_freezable) meta.push("❄️ Congela");
 
@@ -1223,6 +1266,8 @@ function setupRecipeButtons() {
       const label = chip.textContent.trim().toLowerCase();
 
       if (label === "todas") currentRecipeFilter = "todas";
+      else if (label === "comidas") currentRecipeFilter = "comidas";
+      else if (label === "cenas") currentRecipeFilter = "cenas";
       else if (label === "divertidas") currentRecipeFilter = "divertidas";
       else if (label === "congelables") currentRecipeFilter = "congelables";
       else if (label === "no sugerir") currentRecipeFilter = "no-sugerir";
@@ -1244,6 +1289,8 @@ function normalizeRecipeFilters() {
 
   chips.innerHTML = `
     <button class="chip selected" type="button">Todas</button>
+    <button class="chip" type="button">Comidas</button>
+    <button class="chip" type="button">Cenas</button>
     <button class="chip" type="button">Divertidas</button>
     <button class="chip" type="button">Congelables</button>
     <button class="chip" type="button">No sugerir</button>
@@ -1296,7 +1343,6 @@ function formatDayName(date) {
 
 function getMealLabel(type) {
   return {
-    desayuno: "Desayuno",
     comida: "Comida",
     cena: "Cena"
   }[type] || type;
@@ -1369,7 +1415,7 @@ function renderMenuWeek(items) {
   const grid = document.querySelector("#menu .week");
   if (!grid) return;
 
-  const types = ["desayuno", "comida", "cena"];
+  const types = ["comida", "cena"];
 
   grid.innerHTML = Array.from({ length: 7 }, (_, index) => {
     const date = addDays(menuWeekStart, index);
@@ -1451,7 +1497,7 @@ async function getOrCreateMealPlan() {
 async function loadMenuRecipes() {
   const { data, error } = await supabaseClient
     .from("recipes")
-    .select("id, name, description, do_not_suggest, fun_recipe, is_freezable")
+    .select("id, name, description, meal_types, do_not_suggest, fun_recipe, is_freezable")
     .eq("do_not_suggest", false)
     .order("name");
 
@@ -1511,11 +1557,19 @@ async function openMenuRecipePicker(date, mealType) {
   const renderOptions = (query = "") => {
     const text = query.trim().toLowerCase();
 
-    const recipes = menuRecipesCache.filter(recipe =>
-      !text ||
-      recipe.name.toLowerCase().includes(text) ||
-      (recipe.description || "").toLowerCase().includes(text)
-    );
+    const recipes = menuRecipesCache.filter(recipe => {
+      const types = Array.isArray(recipe.meal_types) && recipe.meal_types.length
+        ? recipe.meal_types
+        : ["comida", "cena"];
+
+      const matchesMealType = types.includes(mealType);
+      const matchesSearch =
+        !text ||
+        recipe.name.toLowerCase().includes(text) ||
+        (recipe.description || "").toLowerCase().includes(text);
+
+      return matchesMealType && matchesSearch;
+    });
 
     const container = modal.querySelector(".menu-recipe-options");
 
@@ -1822,11 +1876,39 @@ function normalizeRecipeImportObject(item) {
     cook_time: item.cook_time ?? item.tiempo_coccion ?? null,
     temperature: item.temperature ?? item.temperatura ?? null,
     image_url: item.image_url ?? item.imagen ?? item.image ?? null,
+    meal_types: normalizeMealTypes(item.meal_types ?? item.tipos_comida ?? item.tipo_comida ?? item.meal_type ?? item.tipo),
     fun_recipe: Boolean(item.fun_recipe ?? item.receta_divertida ?? false),
     is_freezable: Boolean(item.is_freezable ?? item.congelable ?? item.se_puede_congelar ?? false),
     do_not_suggest: Boolean(item.do_not_suggest ?? item.no_sugerir ?? false),
     ingredients
   };
+}
+
+function normalizeMealTypes(value) {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map(item => String(item).trim().toLowerCase())
+      .flatMap(item => item === "ambas" ? ["comida", "cena"] : [item])
+      .filter(item => item === "comida" || item === "cena");
+
+    return [...new Set(normalized)];
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return ["comida", "cena"];
+  }
+
+  const text = String(value).trim().toLowerCase();
+
+  if (text === "ambas") return ["comida", "cena"];
+
+  const normalized = text
+    .split(/[;,|+]/)
+    .map(item => item.trim())
+    .flatMap(item => item === "ambas" ? ["comida", "cena"] : [item])
+    .filter(item => item === "comida" || item === "cena");
+
+  return normalized.length ? [...new Set(normalized)] : ["comida", "cena"];
 }
 
 function parseRecipeImportFile(filename, text) {
@@ -1886,6 +1968,7 @@ function parseRecipeCsv(text) {
       cook_time: get("cook_time", "tiempo_coccion"),
       temperature: get("temperature", "temperatura"),
       image_url: get("image_url", "imagen", "image"),
+      meal_types: get("meal_types", "tipos_comida", "tipo_comida", "meal_type", "tipo"),
       fun_recipe: get("fun_recipe", "receta_divertida"),
       is_freezable: get("is_freezable", "congelable"),
       do_not_suggest: get("do_not_suggest", "no_sugerir"),
@@ -1989,6 +2072,7 @@ async function importRecipes(recipes) {
         cook_time: toNumberOrNull(recipe.cook_time),
         temperature: toNumberOrNull(recipe.temperature),
         image_url: recipe.image_url || null,
+        meal_types: normalizeMealTypes(recipe.meal_types),
         fun_recipe: toBoolean(recipe.fun_recipe),
         is_freezable: toBoolean(recipe.is_freezable),
         do_not_suggest: toBoolean(recipe.do_not_suggest)

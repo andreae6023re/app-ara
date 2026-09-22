@@ -964,3 +964,30 @@
     border-radius: 19px;
   }
 }
+
+
+/* =========================================================
+   TIPO DE RECETA: COMIDA / CENA
+   ========================================================= */
+
+.recipe-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.meal-type-check {
+  border-color: #cbd5c6;
+}
+
+@media(max-width:700px) {
+  .recipe-header-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recipe-header-actions button {
+    width: 100%;
+  }
+}
