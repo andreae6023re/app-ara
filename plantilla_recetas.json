@@ -1,0 +1,29 @@
+[
+  {
+    "name": "Pasta con tomate",
+    "description": "Una receta sencilla.",
+    "preparation": "Cocer la pasta. Preparar la salsa. Mezclar.",
+    "servings": 1,
+    "prep_time": 5,
+    "cook_time": 15,
+    "temperature": null,
+    "image_url": null,
+    "fun_recipe": false,
+    "is_freezable": false,
+    "do_not_suggest": false,
+    "ingredients": [
+      {
+        "name": "Pasta",
+        "quantity": 80,
+        "unit": "g",
+        "notes": ""
+      },
+      {
+        "name": "Tomate triturado",
+        "quantity": 150,
+        "unit": "g",
+        "notes": ""
+      }
+    ]
+  }
+]

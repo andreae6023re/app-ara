@@ -1246,6 +1246,379 @@ function normalizeRecipeFilters() {
   `;
 }
 
+
+/* =========================================================
+   IMPORTACIÓN DE RECETAS
+   ========================================================= */
+
+function openRecipeImportModal() {
+  document.querySelectorAll(".recipe-import-modal").forEach(modal => modal.remove());
+
+  const modal = document.createElement("div");
+  modal.className = "recipe-import-modal open";
+
+  modal.innerHTML = `
+    <div class="recipe-import-overlay"></div>
+
+    <div class="recipe-import-box">
+      <div class="inventory-modal-header">
+        <div>
+          <small>IMPORTAR RECETAS</small>
+          <h2>Importar desde archivo</h2>
+        </div>
+        <button type="button" class="modal-close recipe-import-close">×</button>
+      </div>
+
+      <div class="recipe-import-help">
+        <p><strong>Formatos admitidos:</strong> JSON y CSV.</p>
+        <p>Se pueden importar varias recetas de una vez. Los ingredientes se crean automáticamente si todavía no existen.</p>
+        <p class="recipe-import-note">Los campos reconocidos incluyen nombre, descripción, preparación, raciones, tiempos, temperatura, imagen, receta divertida, congelable, no sugerir e ingredientes.</p>
+      </div>
+
+      <label class="recipe-import-file">
+        Archivo
+        <input id="recipe-import-file" type="file" accept=".json,.csv,application/json,text/csv">
+      </label>
+
+      <div id="recipe-import-preview" class="recipe-import-preview">
+        Selecciona un archivo para ver una vista previa.
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="secondary recipe-import-cancel">Cancelar</button>
+        <button type="button" class="primary recipe-import-submit" disabled>Importar recetas</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const fileInput = modal.querySelector("#recipe-import-file");
+  const preview = modal.querySelector("#recipe-import-preview");
+  const submit = modal.querySelector(".recipe-import-submit");
+
+  let parsedRecipes = [];
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    parsedRecipes = [];
+    submit.disabled = true;
+
+    if (!file) {
+      preview.textContent = "Selecciona un archivo para ver una vista previa.";
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      parsedRecipes = parseRecipeImportFile(file.name, text);
+
+      if (!parsedRecipes.length) {
+        preview.innerHTML = "<strong>No se encontraron recetas válidas.</strong>";
+        return;
+      }
+
+      submit.disabled = false;
+      preview.innerHTML = `
+        <strong>${parsedRecipes.length} ${parsedRecipes.length === 1 ? "receta encontrada" : "recetas encontradas"}</strong>
+        <div class="recipe-import-preview-list">
+          ${parsedRecipes.slice(0, 8).map(recipe => `
+            <div>
+              <strong>${escapeHtml(recipe.name)}</strong>
+              <span>${recipe.ingredients?.length || 0} ingrediente${recipe.ingredients?.length === 1 ? "" : "s"}</span>
+            </div>
+          `).join("")}
+          ${parsedRecipes.length > 8 ? `<small>… y ${parsedRecipes.length - 8} más</small>` : ""}
+        </div>
+      `;
+    } catch (error) {
+      console.error("Error leyendo importación:", error);
+      preview.innerHTML = `<strong>No se pudo leer el archivo.</strong><br>${escapeHtml(error.message)}`;
+    }
+  });
+
+  modal.querySelector(".recipe-import-close").addEventListener("click", () => modal.remove());
+  modal.querySelector(".recipe-import-cancel").addEventListener("click", () => modal.remove());
+  modal.querySelector(".recipe-import-overlay").addEventListener("click", () => modal.remove());
+
+  submit.addEventListener("click", async () => {
+    submit.disabled = true;
+    submit.textContent = "Importando…";
+
+    const result = await importRecipes(parsedRecipes);
+
+    if (result.success) {
+      modal.remove();
+      await loadRecipes();
+      alert(`${result.count} ${result.count === 1 ? "receta importada" : "recetas importadas"} correctamente.`);
+      return;
+    }
+
+    submit.disabled = false;
+    submit.textContent = "Importar recetas";
+    preview.innerHTML = `
+      <strong>La importación terminó con avisos.</strong>
+      <p>${escapeHtml(result.message)}</p>
+    `;
+  });
+}
+
+function normalizeRecipeImportObject(item) {
+  const sourceIngredients = Array.isArray(item.ingredients)
+    ? item.ingredients
+    : Array.isArray(item.ingredientes)
+      ? item.ingredientes
+      : [];
+
+  const ingredients = sourceIngredients.map(raw => {
+    if (typeof raw === "string") {
+      return {
+        name: raw.trim(),
+        quantity: null,
+        unit: null,
+        notes: null
+      };
+    }
+
+    return {
+      name: String(raw.name ?? raw.nombre ?? "").trim(),
+      quantity: raw.quantity ?? raw.cantidad ?? null,
+      unit: raw.unit ?? raw.unidad ?? null,
+      notes: raw.notes ?? raw.notas ?? null
+    };
+  }).filter(item => item.name);
+
+  return {
+    name: String(item.name ?? item.nombre ?? "").trim(),
+    description: item.description ?? item.descripcion ?? null,
+    preparation: item.preparation ?? item.preparacion ?? item.steps ?? item.pasos ?? null,
+    servings: item.servings ?? item.raciones ?? null,
+    prep_time: item.prep_time ?? item.tiempo_preparacion ?? null,
+    cook_time: item.cook_time ?? item.tiempo_coccion ?? null,
+    temperature: item.temperature ?? item.temperatura ?? null,
+    image_url: item.image_url ?? item.imagen ?? item.image ?? null,
+    fun_recipe: Boolean(item.fun_recipe ?? item.receta_divertida ?? false),
+    is_freezable: Boolean(item.is_freezable ?? item.congelable ?? item.se_puede_congelar ?? false),
+    do_not_suggest: Boolean(item.do_not_suggest ?? item.no_sugerir ?? false),
+    ingredients
+  };
+}
+
+function parseRecipeImportFile(filename, text) {
+  const lower = filename.toLowerCase();
+
+  if (lower.endsWith(".json")) {
+    const parsed = JSON.parse(text);
+    const list = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed.recipes)
+        ? parsed.recipes
+        : Array.isArray(parsed.recetas)
+          ? parsed.recetas
+          : [];
+
+    return list
+      .map(normalizeRecipeImportObject)
+      .filter(recipe => recipe.name);
+  }
+
+  if (lower.endsWith(".csv")) {
+    return parseRecipeCsv(text);
+  }
+
+  throw new Error("Solo se admiten archivos JSON o CSV.");
+}
+
+function parseRecipeCsv(text) {
+  const rows = parseCsvRows(text);
+  if (rows.length < 2) return [];
+
+  const headers = rows[0].map(value => value.trim().toLowerCase());
+  const recipes = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row.some(value => value.trim())) continue;
+
+    const get = (...names) => {
+      const index = names
+        .map(name => headers.indexOf(name))
+        .find(index => index >= 0);
+
+      return index >= 0 ? (row[index] || "").trim() : "";
+    };
+
+    const ingredients = parseIngredientText(
+      get("ingredients", "ingredientes")
+    );
+
+    recipes.push(normalizeRecipeImportObject({
+      name: get("name", "nombre"),
+      description: get("description", "descripcion", "descripción"),
+      preparation: get("preparation", "preparacion", "preparación"),
+      servings: get("servings", "raciones"),
+      prep_time: get("prep_time", "tiempo_preparacion"),
+      cook_time: get("cook_time", "tiempo_coccion"),
+      temperature: get("temperature", "temperatura"),
+      image_url: get("image_url", "imagen", "image"),
+      fun_recipe: get("fun_recipe", "receta_divertida"),
+      is_freezable: get("is_freezable", "congelable"),
+      do_not_suggest: get("do_not_suggest", "no_sugerir"),
+      ingredients
+    }));
+  }
+
+  return recipes.filter(recipe => recipe.name);
+}
+
+function parseIngredientText(value) {
+  if (!value) return [];
+
+  return value.split(";").map(part => {
+    const [name, quantity, unit, notes] = part.split("|").map(item => item.trim());
+
+    return {
+      name: name || "",
+      quantity: quantity || null,
+      unit: unit || null,
+      notes: notes || null
+    };
+  }).filter(item => item.name);
+}
+
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      i++;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if (char === "," && !quoted) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  if (cell || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const number = Number(String(value).replace(",", "."));
+  return Number.isFinite(number) ? number : null;
+}
+
+function toBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (value === null || value === undefined) return false;
+
+  return ["true", "1", "sí", "si", "yes", "x", "verdadero"].includes(
+    String(value).trim().toLowerCase()
+  );
+}
+
+async function importRecipes(recipes) {
+  let count = 0;
+  const errors = [];
+
+  for (const recipe of recipes) {
+    try {
+      const payload = {
+        name: recipe.name,
+        description: recipe.description || null,
+        preparation: recipe.preparation || null,
+        servings: toNumberOrNull(recipe.servings),
+        prep_time: toNumberOrNull(recipe.prep_time),
+        cook_time: toNumberOrNull(recipe.cook_time),
+        temperature: toNumberOrNull(recipe.temperature),
+        image_url: recipe.image_url || null,
+        fun_recipe: toBoolean(recipe.fun_recipe),
+        is_freezable: toBoolean(recipe.is_freezable),
+        do_not_suggest: toBoolean(recipe.do_not_suggest)
+      };
+
+      const { data, error } = await supabaseClient
+        .from("recipes")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        errors.push(`${recipe.name}: ${error.message}`);
+        continue;
+      }
+
+      for (const item of recipe.ingredients || []) {
+        const { ingredient, error: ingredientError } =
+          await findOrCreateIngredient(item.name, item.unit || "unidad");
+
+        if (ingredientError) {
+          errors.push(`${recipe.name} → ${item.name}: ${ingredientError.message}`);
+          continue;
+        }
+
+        const { error: relationError } = await supabaseClient
+          .from("recipe_ingredients")
+          .insert({
+            recipe_id: data.id,
+            ingredient_id: ingredient.id,
+            quantity: toNumberOrNull(item.quantity),
+            unit: item.unit || null,
+            notes: item.notes || null
+          });
+
+        if (relationError) {
+          errors.push(`${recipe.name} → ${item.name}: ${relationError.message}`);
+        }
+      }
+
+      count++;
+    } catch (error) {
+      errors.push(`${recipe.name}: ${error.message}`);
+    }
+  }
+
+  return {
+    success: count > 0 && errors.length === 0,
+    count,
+    message: errors.length
+      ? `${count} recetas importadas. ${errors.length} incidencias:\n${errors.slice(0, 8).join("\n")}`
+      : ""
+  };
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   setupInventoryButtons();
   testSupabaseConnection();

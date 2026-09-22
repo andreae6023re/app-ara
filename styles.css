@@ -668,3 +668,137 @@
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   IMPORTACIÓN DE RECETAS
+   ========================================================= */
+
+.recipe-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.recipe-import-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.recipe-import-modal.open {
+  display: flex;
+}
+
+.recipe-import-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(30, 30, 25, .52);
+  backdrop-filter: blur(2px);
+}
+
+.recipe-import-box {
+  position: relative;
+  z-index: 1;
+  width: min(650px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fffdf9;
+  border-radius: 22px;
+  padding: 26px;
+  box-shadow: 0 25px 70px rgba(0,0,0,.20);
+}
+
+.recipe-import-help {
+  color: #70756d;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.recipe-import-help p {
+  margin: 0 0 8px;
+}
+
+.recipe-import-note {
+  padding: 12px;
+  border-radius: 12px;
+  background: #f5f2ec;
+}
+
+.recipe-import-file {
+  display: grid;
+  gap: 7px;
+  color: #555a52;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.recipe-import-file input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dedad1;
+  border-radius: 11px;
+  background: #faf8f4;
+  padding: 12px;
+  font: inherit;
+}
+
+.recipe-import-preview {
+  margin-top: 16px;
+  padding: 15px;
+  min-height: 65px;
+  border: 1px dashed #d9d4ca;
+  border-radius: 14px;
+  color: #858981;
+  font-size: 13px;
+}
+
+.recipe-import-preview-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.recipe-import-preview-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #f5f2ec;
+  border-radius: 10px;
+}
+
+.recipe-import-preview-list span {
+  color: #858981;
+}
+
+.recipe-import-submit:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+@media(max-width:700px) {
+  .recipe-header-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recipe-header-actions button {
+    width: 100%;
+  }
+
+  .recipe-import-box {
+    padding: 21px;
+    border-radius: 19px;
+  }
+
+  .recipe-import-preview-list div {
+    flex-direction: column;
+  }
+}

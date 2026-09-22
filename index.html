@@ -68,7 +68,10 @@
       <section id="recetas" class="page">
         <div class="page-head">
           <div><small>RECETARIO</small><h2>Recetas</h2></div>
-          <button class="primary" type="button" onclick="openRecipeModal()">＋ Nueva receta</button>
+          <div class="recipe-header-actions">
+            <button class="secondary" type="button" onclick="openRecipeImportModal()">⇧ Importar recetas</button>
+            <button class="primary" type="button" onclick="openRecipeModal()">＋ Nueva receta</button>
+          </div>
         </div>
         <div class="chips">
           <button class="chip selected" type="button">Todas</button>
