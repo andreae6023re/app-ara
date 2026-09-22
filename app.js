@@ -35,6 +35,10 @@ function showPage(id) {
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 
+  if (id === "inicio") {
+    loadHomeDashboard();
+  }
+
   if (id === "inventario") {
     loadInventory();
   }
@@ -76,6 +80,177 @@ async function testSupabaseConnection() {
 
   console.log("✅ Supabase conectado correctamente:", data);
 }
+
+
+/* =========================================================
+   INICIO · PANEL DE CONTROL
+   ========================================================= */
+
+function formatHomeDate(date) {
+  return date.toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long"
+  });
+}
+
+function homeRecipeName(item) {
+  return item?.recipes?.name || "Sin receta";
+}
+
+function homeMealCard(type, item) {
+  const label = type === "comida" ? "Comida" : "Cena";
+  const icon = type === "comida" ? "🍴" : "🌙";
+  const hasRecipe = !!item?.recipe_id;
+
+  return `
+    <button type="button" class="home-meal-card ${hasRecipe ? "has-recipe" : "is-empty"}" onclick="showPage('menu')">
+      <div class="home-meal-icon">${icon}</div>
+      <div class="home-meal-content">
+        <small>${label}</small>
+        <strong>${escapeHtml(homeRecipeName(item))}</strong>
+        <span>${hasRecipe ? "Ver menú →" : "Añadir receta →"}</span>
+      </div>
+    </button>
+  `;
+}
+
+function homeStatCard(icon, value, label, page) {
+  return `
+    <button type="button" class="home-stat-card" onclick="showPage('${page}')">
+      <div class="home-stat-icon">${icon}</div>
+      <div>
+        <strong>${value}</strong>
+        <span>${label}</span>
+      </div>
+    </button>
+  `;
+}
+
+function homeInventoryCard(icon, title, count) {
+  return `
+    <button type="button" class="home-inventory-card" onclick="showPage('inventario')">
+      <div class="home-inventory-icon">${icon}</div>
+      <div>
+        <strong>${title}</strong>
+        <span>${count} ${count === 1 ? "producto" : "productos"}</span>
+      </div>
+    </button>
+  `;
+}
+
+async function loadHomeDashboard() {
+  const today = new Date();
+  const todayISO = dateToISO(today);
+  const weekStart = dateToISO(getMonday(today));
+
+  const mealsContainer = document.getElementById("home-today-meals");
+  const statsContainer = document.getElementById("home-stats");
+  const inventoryContainer = document.getElementById("home-inventory");
+
+  if (!mealsContainer || !statsContainer || !inventoryContainer) return;
+
+  const note = document.querySelector("#inicio .hero p");
+  if (note) {
+    note.textContent = `${capitalize(formatHomeDate(today))}. Todo lo que necesitas, en un vistazo.`;
+  }
+
+  const [planResult, shoppingResult, inventoryResult, recipesResult] = await Promise.all([
+    supabaseClient
+      .from("meal_plans")
+      .select("id")
+      .eq("week_start", weekStart)
+      .limit(1),
+    supabaseClient
+      .from("shopping_items")
+      .select("id", { count: "exact", head: true })
+      .eq("checked", false),
+    supabaseClient
+      .from("inventory")
+      .select("id, location"),
+    supabaseClient
+      .from("recipes")
+      .select("id", { count: "exact", head: true })
+  ]);
+
+  if (planResult.error) {
+    console.error("Error cargando plan del inicio:", planResult.error);
+  }
+  if (shoppingResult.error) {
+    console.error("Error cargando compra del inicio:", shoppingResult.error);
+  }
+  if (inventoryResult.error) {
+    console.error("Error cargando inventario del inicio:", inventoryResult.error);
+  }
+  if (recipesResult.error) {
+    console.error("Error cargando recetas del inicio:", recipesResult.error);
+  }
+
+  let todayItems = [];
+
+  const plan = planResult.data?.[0];
+  if (plan?.id) {
+    const todayResult = await supabaseClient
+      .from("meal_plan_items")
+      .select(`
+        meal_type,
+        recipe_id,
+        recipes (
+          id,
+          name
+        )
+      `)
+      .eq("meal_plan_id", plan.id)
+      .eq("date", todayISO)
+      .in("meal_type", ["comida", "cena"]);
+
+    if (todayResult.error) {
+      console.error("Error cargando el menú de hoy:", todayResult.error);
+    } else {
+      todayItems = todayResult.data || [];
+    }
+  }
+
+  const itemByType = {
+    comida: todayItems.find(item => item.meal_type === "comida") || null,
+    cena: todayItems.find(item => item.meal_type === "cena") || null
+  };
+
+  mealsContainer.innerHTML = `
+    ${homeMealCard("comida", itemByType.comida)}
+    ${homeMealCard("cena", itemByType.cena)}
+  `;
+
+  const pendingShopping = shoppingResult.count || 0;
+  const totalInventory = inventoryResult.data?.length || 0;
+  const totalRecipes = recipesResult.count || 0;
+
+  statsContainer.innerHTML = `
+    ${homeStatCard("🛒", pendingShopping, "por comprar", "compra")}
+    ${homeStatCard("📦", totalInventory, "en inventario", "inventario")}
+    ${homeStatCard("📖", totalRecipes, "recetas", "recetas")}
+  `;
+
+  const inventoryCounts = {
+    despensa: 0,
+    frigorifico: 0,
+    congelador: 0
+  };
+
+  (inventoryResult.data || []).forEach(item => {
+    if (item.location in inventoryCounts) {
+      inventoryCounts[item.location]++;
+    }
+  });
+
+  inventoryContainer.innerHTML = `
+    ${homeInventoryCard("🥫", "Despensa", inventoryCounts.despensa)}
+    ${homeInventoryCard("🥬", "Frigorífico", inventoryCounts.frigorifico)}
+    ${homeInventoryCard("🧊", "Congelador", inventoryCounts.congelador)}
+  `;
+}
+
+window.loadHomeDashboard = loadHomeDashboard;
 
 let currentInventoryLocation = null;
 
@@ -2998,6 +3173,7 @@ async function importRecipes(recipes) {
 
 document.addEventListener("DOMContentLoaded", () => {
   setupInventoryButtons();
+  loadHomeDashboard();
   testSupabaseConnection();
 
   normalizeRecipeFilters();
