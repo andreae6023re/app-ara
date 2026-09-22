@@ -14,9 +14,6 @@ const titles = {
   compra: "Lista de compra"
 };
 
-let currentInventoryLocation = null;
-let editingInventoryId = null;
-
 function showPage(id) {
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active-page"));
 
@@ -30,13 +27,17 @@ function showPage(id) {
   const pageTitle = document.getElementById("page-title");
   if (pageTitle) pageTitle.textContent = titles[id] || "ARA";
 
-  document.getElementById("sidebar")?.classList.remove("open");
+  const sidebar = document.getElementById("sidebar");
+  if (sidebar) sidebar.classList.remove("open");
+
   const overlay = document.getElementById("overlay");
   if (overlay) overlay.style.display = "none";
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 
-  if (id === "inventario") loadInventory();
+  if (id === "inventario") {
+    loadInventory();
+  }
 }
 
 function toggleMenu() {
@@ -44,6 +45,7 @@ function toggleMenu() {
   if (!sidebar) return;
 
   const open = sidebar.classList.toggle("open");
+
   const overlay = document.getElementById("overlay");
   if (overlay) overlay.style.display = open ? "block" : "none";
 }
@@ -62,6 +64,8 @@ async function testSupabaseConnection() {
   console.log("✅ Supabase conectado correctamente:", data);
 }
 
+let currentInventoryLocation = null;
+
 function createInventoryModal() {
   if (document.getElementById("inventory-modal")) return;
 
@@ -74,8 +78,8 @@ function createInventoryModal() {
     <div class="inventory-modal-box">
       <div class="inventory-modal-header">
         <div>
-          <small id="inventory-modal-label">AÑADIR PRODUCTO</small>
-          <h2 id="inventory-modal-title">Nuevo producto</h2>
+          <small>AÑADIR PRODUCTO</small>
+          <h2>Nuevo producto</h2>
         </div>
         <button type="button" id="close-inventory-modal" class="modal-close">×</button>
       </div>
@@ -129,7 +133,7 @@ function createInventoryModal() {
 
         <div class="modal-actions">
           <button type="button" id="cancel-inventory" class="secondary">Cancelar</button>
-          <button type="submit" class="primary" id="save-inventory-button">Guardar producto</button>
+          <button type="submit" class="primary">Guardar producto</button>
         </div>
       </form>
     </div>
@@ -150,43 +154,10 @@ function createInventoryModal() {
     .addEventListener("submit", saveInventoryProduct);
 }
 
-function resetInventoryModal() {
-  editingInventoryId = null;
-
-  const form = document.getElementById("inventory-form");
-  if (form) form.reset();
-
-  document.getElementById("inventory-modal-label").textContent = "AÑADIR PRODUCTO";
-  document.getElementById("inventory-modal-title").textContent = "Nuevo producto";
-  document.getElementById("save-inventory-button").textContent = "Guardar producto";
-}
-
 function openInventoryModal(location = "despensa") {
   createInventoryModal();
-  resetInventoryModal();
 
   document.getElementById("product-location").value = location;
-  document.getElementById("inventory-modal").classList.add("open");
-  document.getElementById("product-name").focus();
-}
-
-function openEditInventoryModal(product) {
-  createInventoryModal();
-
-  editingInventoryId = product.id;
-
-  document.getElementById("inventory-modal-label").textContent = "EDITAR PRODUCTO";
-  document.getElementById("inventory-modal-title").textContent = "Editar producto";
-  document.getElementById("save-inventory-button").textContent = "Guardar cambios";
-
-  document.getElementById("product-name").value = product.ingredients?.name || "";
-  document.getElementById("product-quantity").value =
-    product.quantity === null || product.quantity === undefined ? "" : product.quantity;
-  document.getElementById("product-unit").value = product.unit || "unidad";
-  document.getElementById("product-location").value = product.location || "despensa";
-  document.getElementById("product-expiration").value = product.expiration_date || "";
-  document.getElementById("product-notes").value = product.notes || "";
-
   document.getElementById("inventory-modal").classList.add("open");
   document.getElementById("product-name").focus();
 }
@@ -196,29 +167,9 @@ function closeInventoryModal() {
   if (!modal) return;
 
   modal.classList.remove("open");
-  resetInventoryModal();
-}
 
-async function findOrCreateIngredient(name, unit) {
-  let { data: ingredient, error } = await supabaseClient
-    .from("ingredients")
-    .select("id, name")
-    .ilike("name", name)
-    .maybeSingle();
-
-  if (error) return { ingredient: null, error };
-
-  if (!ingredient) {
-    const result = await supabaseClient
-      .from("ingredients")
-      .insert({ name, default_unit: unit })
-      .select()
-      .single();
-
-    return { ingredient: result.data, error: result.error };
-  }
-
-  return { ingredient, error: null };
+  const form = document.getElementById("inventory-form");
+  if (form) form.reset();
 }
 
 async function saveInventoryProduct(event) {
@@ -236,61 +187,43 @@ async function saveInventoryProduct(event) {
     return;
   }
 
-  const quantity = quantityValue ? Number(quantityValue) : null;
+  let { data: ingredient, error: ingredientError } = await supabaseClient
+    .from("ingredients")
+    .select("id, name")
+    .ilike("name", name)
+    .maybeSingle();
 
-  if (editingInventoryId) {
-    const { ingredient, error: ingredientError } =
-      await findOrCreateIngredient(name, unit);
-
-    if (ingredientError) {
-      console.error("Error buscando/creando ingrediente:", ingredientError);
-      alert("No se pudo guardar el ingrediente.\n\n" + ingredientError.message);
-      return;
-    }
-
-    const { error } = await supabaseClient
-      .from("inventory")
-      .update({
-        ingredient_id: ingredient.id,
-        quantity,
-        unit,
-        location,
-        expiration_date: expiration || null,
-        notes: notes || null,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", editingInventoryId);
-
-    if (error) {
-      console.error("Error actualizando inventario:", error);
-      alert("No se pudo actualizar el producto.\n\n" + error.message);
-      return;
-    }
-
-    closeInventoryModal();
-    await loadInventory();
-
-    if (currentInventoryLocation) {
-      await viewInventoryProducts(currentInventoryLocation);
-    }
-
+  if (ingredientError) {
+    console.error("Error buscando ingrediente:", ingredientError);
+    alert("No se pudo comprobar el ingrediente.");
     return;
   }
 
-  const { ingredient, error: ingredientError } =
-    await findOrCreateIngredient(name, unit);
+  if (!ingredient) {
+    const result = await supabaseClient
+      .from("ingredients")
+      .insert({
+        name,
+        default_unit: unit
+      })
+      .select()
+      .single();
 
-  if (ingredientError) {
-    console.error("Error creando/buscando ingrediente:", ingredientError);
-    alert("No se pudo guardar el ingrediente.\n\n" + ingredientError.message);
-    return;
+    ingredient = result.data;
+    ingredientError = result.error;
+
+    if (ingredientError) {
+      console.error("Error creando ingrediente:", ingredientError);
+      alert("No se pudo crear el ingrediente.");
+      return;
+    }
   }
 
   const { error: inventoryError } = await supabaseClient
     .from("inventory")
     .insert({
       ingredient_id: ingredient.id,
-      quantity,
+      quantity: quantityValue ? Number(quantityValue) : null,
       unit,
       location,
       expiration_date: expiration || null,
@@ -305,6 +238,7 @@ async function saveInventoryProduct(event) {
 
   closeInventoryModal();
   await loadInventory();
+  alert("Producto añadido correctamente.");
 }
 
 async function loadInventory() {
@@ -317,8 +251,6 @@ async function loadInventory() {
       location,
       expiration_date,
       notes,
-      created_at,
-      updated_at,
       ingredients (
         id,
         name
@@ -373,25 +305,15 @@ function renderInventory(items) {
           ${products.length === 1 ? "producto" : "productos"}
         </div>
 
-        <button type="button" onclick="viewInventoryProducts('${location.id}')">
+        <button
+          type="button"
+          onclick="viewInventoryProducts('${location.id}')"
+        >
           Ver productos →
         </button>
       </article>
     `;
   }).join("");
-}
-
-function formatExpiration(date) {
-  if (!date) return "";
-
-  const parsed = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return date;
-
-  return parsed.toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  });
 }
 
 async function viewInventoryProducts(location) {
@@ -423,8 +345,6 @@ async function viewInventoryProducts(location) {
 }
 
 function showInventoryProducts(location, products) {
-  document.querySelectorAll(".inventory-products-modal").forEach(modal => modal.remove());
-
   const names = {
     despensa: "🥫 Despensa",
     frigorifico: "🥬 Frigorífico",
@@ -447,10 +367,6 @@ function showInventoryProducts(location, products) {
         <button type="button" class="modal-close">×</button>
       </div>
 
-      <div class="inventory-list-summary">
-        ${products.length} ${products.length === 1 ? "producto" : "productos"}
-      </div>
-
       <div class="products-list">
         ${
           products.length === 0
@@ -462,42 +378,24 @@ function showInventoryProducts(location, products) {
             `
             : products.map(product => {
                 const name = product.ingredients?.name || "Producto";
-                const quantity = product.quantity !== null && product.quantity !== undefined
+                const quantity = product.quantity !== null
                   ? `${product.quantity} ${product.unit || ""}`.trim()
-                  : "Sin cantidad";
-
-                const expiration = product.expiration_date
-                  ? `Caduca: ${formatExpiration(product.expiration_date)}`
                   : "";
 
                 return `
-                  <div class="product-row product-row-rich">
-                    <div class="product-main">
+                  <div class="product-row">
+                    <div>
                       <strong>${name}</strong>
                       <span>${quantity}</span>
-                      ${expiration ? `<small>${expiration}</small>` : ""}
-                      ${product.notes ? `<small>${product.notes}</small>` : ""}
                     </div>
 
-                    <div class="product-row-actions">
-                      <button
-                        type="button"
-                        class="edit-product"
-                        data-product-id="${product.id}"
-                        title="Editar producto"
-                      >
-                        ✏️
-                      </button>
-
-                      <button
-                        type="button"
-                        class="delete-product"
-                        data-product-id="${product.id}"
-                        title="Eliminar producto"
-                      >
-                        🗑️
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      class="delete-product"
+                      onclick="deleteInventoryProduct(${product.id})"
+                    >
+                      🗑️
+                    </button>
                   </div>
                 `;
               }).join("")
@@ -505,7 +403,9 @@ function showInventoryProducts(location, products) {
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="secondary close-products">Cerrar</button>
+        <button type="button" class="secondary close-products">
+          Cerrar
+        </button>
 
         <button type="button" class="primary add-from-products">
           ＋ Añadir producto
@@ -530,24 +430,6 @@ function showInventoryProducts(location, products) {
       modal.remove();
       openInventoryModal(location);
     });
-
-  modal.querySelectorAll(".edit-product").forEach(button => {
-    button.addEventListener("click", () => {
-      const id = Number(button.dataset.productId);
-      const product = products.find(item => item.id === id);
-      if (!product) return;
-
-      modal.remove();
-      openEditInventoryModal(product);
-    });
-  });
-
-  modal.querySelectorAll(".delete-product").forEach(button => {
-    button.addEventListener("click", async () => {
-      const id = Number(button.dataset.productId);
-      await deleteInventoryProduct(id);
-    });
-  });
 }
 
 async function deleteInventoryProduct(id) {
@@ -568,11 +450,10 @@ async function deleteInventoryProduct(id) {
     return;
   }
 
-  await loadInventory();
+  document.querySelectorAll(".inventory-products-modal")
+    .forEach(modal => modal.remove());
 
-  if (currentInventoryLocation) {
-    await viewInventoryProducts(currentInventoryLocation);
-  }
+  await loadInventory();
 }
 
 function setupInventoryButtons() {
