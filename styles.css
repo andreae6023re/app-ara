@@ -1025,3 +1025,9 @@
   color: #858981;
   font-size: 12px;
 }
+
+
+#menu .page-head .primary:disabled {
+  opacity: .6;
+  cursor: wait;
+}

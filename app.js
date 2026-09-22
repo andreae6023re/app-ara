@@ -1792,16 +1792,207 @@ async function removeRecipeFromMenu(date, mealType) {
   await loadMenu();
 }
 
+
+/* =========================================================
+   GENERADOR AUTOMÁTICO DE MENÚ
+   ========================================================= */
+
+async function generateWeeklyMenu() {
+  const button = document.querySelector("#menu .page-head .primary");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Generando…";
+  }
+
+  try {
+    const { plan, error: planError } = await getOrCreateMealPlan();
+
+    if (planError) {
+      throw planError;
+    }
+
+    const { data: existingItems, error: itemsError } = await supabaseClient
+      .from("meal_plan_items")
+      .select(`
+        id,
+        date,
+        meal_type,
+        recipe_id,
+        is_locked,
+        recipes (
+          id,
+          name,
+          meal_types,
+          do_not_suggest,
+          fun_recipe
+        )
+      `)
+      .eq("meal_plan_id", plan.id);
+
+    if (itemsError) {
+      throw itemsError;
+    }
+
+    const { data: recipes, error: recipesError } = await supabaseClient
+      .from("recipes")
+      .select(`
+        id,
+        name,
+        meal_types,
+        do_not_suggest,
+        fun_recipe
+      `)
+      .eq("do_not_suggest", false)
+      .order("name");
+
+    if (recipesError) {
+      throw recipesError;
+    }
+
+    const allRecipes = recipes || [];
+    const items = existingItems || [];
+
+    const usedRecipeIds = new Set(
+      items
+        .filter(item => item.recipe_id && item.is_locked)
+        .map(item => item.recipe_id)
+    );
+
+    const slots = [];
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      const date = dateToISO(addDays(menuWeekStart, dayIndex));
+
+      for (const mealType of ["comida", "cena"]) {
+        const existing = items.find(item =>
+          item.date === date && item.meal_type === mealType
+        );
+
+        if (existing?.is_locked) continue;
+
+        slots.push({
+          date,
+          mealType,
+          existingId: existing?.id || null,
+          dayIndex
+        });
+      }
+    }
+
+    if (!slots.length) {
+      alert("Todas las comidas de esta semana están fijadas 🔒.");
+      return;
+    }
+
+    // Rellenamos primero las cenas de miércoles y viernes para dar
+    // prioridad a las recetas marcadas como "divertidas".
+    slots.sort((a, b) => {
+      const score = slot => (
+        slot.mealType === "cena" && (slot.dayIndex === 2 || slot.dayIndex === 4)
+          ? 0
+          : 1
+      );
+
+      return score(a) - score(b);
+    });
+
+    const selected = [];
+
+    for (const slot of slots) {
+      const compatible = allRecipes.filter(recipe => {
+        const mealTypes = Array.isArray(recipe.meal_types) && recipe.meal_types.length
+          ? recipe.meal_types
+          : ["comida", "cena"];
+
+        return mealTypes.includes(slot.mealType)
+          && !usedRecipeIds.has(recipe.id);
+      });
+
+      let candidates = compatible;
+
+      const isFunDinner =
+        slot.mealType === "cena" &&
+        (slot.dayIndex === 2 || slot.dayIndex === 4);
+
+      if (isFunDinner) {
+        const funCandidates = compatible.filter(recipe => recipe.fun_recipe);
+
+        if (funCandidates.length) {
+          candidates = funCandidates;
+        }
+      }
+
+      if (!candidates.length) {
+        // Si ya no quedan recetas distintas, permitimos repetir solo entre
+        // recetas compatibles para poder completar el menú.
+        candidates = allRecipes.filter(recipe => {
+          const mealTypes = Array.isArray(recipe.meal_types) && recipe.meal_types.length
+            ? recipe.meal_types
+            : ["comida", "cena"];
+
+          return mealTypes.includes(slot.mealType);
+        });
+      }
+
+      if (!candidates.length) continue;
+
+      // Evitar repetir dentro de la misma ejecución siempre que haya opciones.
+      const notSelectedThisRun = candidates.filter(
+        recipe => !selected.some(item => item.id === recipe.id)
+      );
+
+      const pool = notSelectedThisRun.length ? notSelectedThisRun : candidates;
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
+
+      usedRecipeIds.add(chosen.id);
+      selected.push(chosen);
+
+      if (slot.existingId) {
+        const { error } = await supabaseClient
+          .from("meal_plan_items")
+          .update({
+            recipe_id: chosen.id,
+            is_locked: false
+          })
+          .eq("id", slot.existingId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabaseClient
+          .from("meal_plan_items")
+          .insert({
+            meal_plan_id: plan.id,
+            date: slot.date,
+            meal_type: slot.mealType,
+            recipe_id: chosen.id,
+            is_locked: false
+          });
+
+        if (error) throw error;
+      }
+    }
+
+    await loadMenu();
+  } catch (error) {
+    console.error("Error generando menú:", error);
+    alert("No se pudo generar el menú.\n\n" + (error.message || "Error desconocido"));
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "✦ Generar menú";
+    }
+  }
+}
+
 function setupMenuControls() {
   const menuPage = document.getElementById("menu");
   if (!menuPage) return;
 
   const generateButton = menuPage.querySelector(".page-head .primary");
   if (generateButton) {
-    generateButton.textContent = "＋ Elegir recetas";
-    generateButton.onclick = () => {
-      document.querySelector("#menu .week article .menu-meal-slot")?.click();
-    };
+    generateButton.textContent = "✦ Generar menú";
+    generateButton.onclick = generateWeeklyMenu;
   }
 }
 
