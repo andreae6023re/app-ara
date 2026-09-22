@@ -66,9 +66,24 @@
       </section>
 
       <section id="recetas" class="page">
-        <div class="page-head"><div><small>RECETARIO</small><h2>Recetas</h2></div><button class="primary">＋ Nueva receta</button></div>
-        <div class="chips"><button class="chip selected">Todas</button><button class="chip">Comidas</button><button class="chip">Cenas</button><button class="chip">Desayunos</button><button class="chip">Dulces</button><button class="chip">Pan</button></div>
-        <div class="empty"><div class="empty-icon">▤</div><h3>Aún no hay recetas</h3><p>Cuando conectemos Supabase podremos guardar aquí todo tu recetario.</p><button class="secondary">＋ Añadir receta</button></div>
+        <div class="page-head">
+          <div><small>RECETARIO</small><h2>Recetas</h2></div>
+          <button class="primary" type="button" onclick="openRecipeModal()">＋ Nueva receta</button>
+        </div>
+        <div class="chips">
+          <button class="chip selected" type="button">Todas</button>
+          <button class="chip" type="button">Comidas</button>
+          <button class="chip" type="button">Cenas</button>
+          <button class="chip" type="button">Desayunos</button>
+          <button class="chip" type="button">Dulces</button>
+          <button class="chip" type="button">Pan</button>
+        </div>
+        <div class="empty">
+          <div class="empty-icon">▤</div>
+          <h3>Aún no hay recetas</h3>
+          <p>Cuando conectemos Supabase podremos guardar aquí todo tu recetario.</p>
+          <button class="secondary" type="button" onclick="openRecipeModal()">＋ Añadir receta</button>
+        </div>
       </section>
 
       <section id="inventario" class="page">
@@ -94,7 +109,8 @@
       <button data-page="compra" onclick="showPage('compra')">□<span>Compra</span></button>
     </nav>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

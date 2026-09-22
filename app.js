@@ -38,6 +38,11 @@ function showPage(id) {
   if (id === "inventario") {
     loadInventory();
   }
+
+  if (id === "recetas") {
+    setupRecipeButtons();
+    loadRecipes();
+  }
 }
 
 function toggleMenu() {
@@ -659,6 +664,8 @@ function openRecipeModal() {
   document.getElementById("recipe-name").focus();
 }
 
+window.openRecipeModal = openRecipeModal;
+
 async function openEditRecipeModal(recipeId) {
   createRecipeModal();
 
@@ -744,6 +751,39 @@ function collectRecipeIngredients() {
       notes: row.querySelector(".recipe-ingredient-notes").value.trim()
     }))
     .filter(item => item.name);
+}
+
+async function findOrCreateIngredient(name, unit) {
+  let { data: ingredient, error } = await supabaseClient
+    .from("ingredients")
+    .select("id, name")
+    .ilike("name", name)
+    .maybeSingle();
+
+  if (error) {
+    return { ingredient: null, error };
+  }
+
+  if (!ingredient) {
+    const result = await supabaseClient
+      .from("ingredients")
+      .insert({
+        name,
+        default_unit: unit || null
+      })
+      .select()
+      .single();
+
+    return {
+      ingredient: result.data,
+      error: result.error
+    };
+  }
+
+  return {
+    ingredient,
+    error: null
+  };
 }
 
 async function saveRecipe(event) {
@@ -971,8 +1011,10 @@ function renderRecipes(recipes) {
       </div>
     `;
 
-    container.querySelector("#empty-recipe-add")
-      ?.addEventListener("click", openRecipeModal);
+    const emptyAdd = container.querySelector("#empty-recipe-add");
+    if (emptyAdd) {
+      emptyAdd.onclick = openRecipeModal;
+    }
 
     return;
   }
@@ -1011,7 +1053,10 @@ function setupRecipeButtons() {
   const page = document.getElementById("recetas");
   if (!page) return;
 
-  page.querySelector(".page-head .primary")?.addEventListener("click", openRecipeModal);
+  const addRecipeButton = page.querySelector(".page-head .primary");
+  if (addRecipeButton) {
+    addRecipeButton.onclick = openRecipeModal;
+  }
 
   page.querySelectorAll(".chip").forEach(chip => {
     chip.addEventListener("click", () => {
