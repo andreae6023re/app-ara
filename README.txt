@@ -1,12 +1,5 @@
-ARA · Menú v4
+ARA · Comidas — Lista de compra v1
 
-Generador automático:
-- Mantiene intactas las comidas fijadas 🔒.
-- Solo trabaja con Comida y Cena.
-- Excluye recetas marcadas "No sugerir".
-- Respeta el tipo de comida/cena de cada receta.
-- Intenta no repetir recetas dentro de la semana.
-- Prioriza recetas "divertidas" para cena del miércoles y viernes.
-- Si no hay suficientes recetas únicas, permite repetir para poder completar el menú.
+Sustituye index.html, app.js y styles.css por estos archivos en tu repositorio app-ara.
 
-No requiere nuevas tablas ni SQL.
+Incluye lista manual, lista generada desde el menú, descuento del inventario, marcar como comprado y borrar comprados.

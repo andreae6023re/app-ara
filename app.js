@@ -47,6 +47,10 @@ function showPage(id) {
     setupRecipeButtons();
     loadRecipes();
   }
+
+  if (id === "compra") {
+    loadShoppingList();
+  }
 }
 
 function toggleMenu() {
@@ -2002,6 +2006,595 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* =========================================================
+   LISTA DE COMPRA
+   ========================================================= */
+
+const SHOPPING_GENERATED_PREFIX = "__ARA_GENERATED__:";
+
+function getShoppingGeneratedNote() {
+  return SHOPPING_GENERATED_PREFIX + dateToISO(menuWeekStart);
+}
+
+function shoppingUnitInfo(unit) {
+  const raw = String(unit || "").trim().toLowerCase();
+
+  if (!raw) return { group: "unknown", factor: 1, label: "" };
+
+  const aliases = {
+    "g": { group: "weight", factor: 1, label: "g" },
+    "gramo": { group: "weight", factor: 1, label: "g" },
+    "gramos": { group: "weight", factor: 1, label: "g" },
+    "kg": { group: "weight", factor: 1000, label: "g" },
+    "kilo": { group: "weight", factor: 1000, label: "g" },
+    "kilos": { group: "weight", factor: 1000, label: "g" },
+    "ml": { group: "volume", factor: 1, label: "ml" },
+    "mililitro": { group: "volume", factor: 1, label: "ml" },
+    "mililitros": { group: "volume", factor: 1, label: "ml" },
+    "l": { group: "volume", factor: 1000, label: "ml" },
+    "litro": { group: "volume", factor: 1000, label: "ml" },
+    "litros": { group: "volume", factor: 1000, label: "ml" },
+    "unidad": { group: "count", factor: 1, label: "unidad" },
+    "unidades": { group: "count", factor: 1, label: "unidad" },
+    "ud": { group: "count", factor: 1, label: "unidad" },
+    "uds": { group: "count", factor: 1, label: "unidad" },
+    "u": { group: "count", factor: 1, label: "unidad" },
+    "cucharadita": { group: "teaspoon", factor: 1, label: "cucharadita" },
+    "cucharaditas": { group: "teaspoon", factor: 1, label: "cucharadita" },
+    "cucharada": { group: "tablespoon", factor: 1, label: "cucharada" },
+    "cucharadas": { group: "tablespoon", factor: 1, label: "cucharada" },
+    "pizca": { group: "pinch", factor: 1, label: "pizca" },
+    "pizcas": { group: "pinch", factor: 1, label: "pizca" },
+    "paquete": { group: "package", factor: 1, label: "paquete" },
+    "paquetes": { group: "package", factor: 1, label: "paquete" },
+    "bote": { group: "jar", factor: 1, label: "bote" },
+    "botes": { group: "jar", factor: 1, label: "bote" },
+    "lata": { group: "can", factor: 1, label: "lata" },
+    "latas": { group: "can", factor: 1, label: "lata" },
+    "ración": { group: "portion", factor: 1, label: "ración" },
+    "raciones": { group: "portion", factor: 1, label: "ración" }
+  };
+
+  return aliases[raw] || { group: raw, factor: 1, label: unit };
+}
+
+function formatShoppingNumber(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "";
+  const number = Number(value);
+
+  if (Number.isInteger(number)) return String(number);
+
+  return number
+    .toFixed(2)
+    .replace(/0+$/, "")
+    .replace(/\.$/, "")
+    .replace(".", ",");
+}
+
+function formatShoppingAmount(quantity, unit) {
+  if (quantity === null || quantity === undefined) return "";
+
+  const unitInfo = shoppingUnitInfo(unit);
+  let displayQuantity = Number(quantity);
+  let displayUnit = unit || unitInfo.label || "";
+
+  if (unitInfo.group === "weight" && unitInfo.label === "g") {
+    if (displayQuantity >= 1000) {
+      displayQuantity /= 1000;
+      displayUnit = "kg";
+    } else {
+      displayUnit = "g";
+    }
+  }
+
+  if (unitInfo.group === "volume" && unitInfo.label === "ml") {
+    if (displayQuantity >= 1000) {
+      displayQuantity /= 1000;
+      displayUnit = "l";
+    } else {
+      displayUnit = "ml";
+    }
+  }
+
+  return `${formatShoppingNumber(displayQuantity)} ${displayUnit}`.trim();
+}
+
+async function loadShoppingList() {
+  const page = document.getElementById("compra");
+  if (!page) return;
+
+  const { data, error } = await supabaseClient
+    .from("shopping_items")
+    .select(`
+      id,
+      quantity,
+      unit,
+      checked,
+      notes,
+      created_at,
+      ingredients (
+        id,
+        name
+      )
+    `)
+    .order("checked", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error cargando lista de compra:", error);
+    renderShoppingError(error);
+    return;
+  }
+
+  renderShoppingList(data || []);
+}
+
+function renderShoppingError(error) {
+  const container = document.getElementById("shopping-list-content");
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="empty shopping-empty">
+      <div class="empty-icon">!</div>
+      <h3>No se pudo cargar la lista</h3>
+      <p>${escapeHtml(error.message || "Error desconocido")}</p>
+    </div>
+  `;
+}
+
+function isGeneratedShoppingItem(item) {
+  return String(item.notes || "").startsWith(SHOPPING_GENERATED_PREFIX);
+}
+
+function renderShoppingItem(item) {
+  const name = item.ingredients?.name || "Producto";
+  const amount = formatShoppingAmount(item.quantity, item.unit);
+  const manualNote = !isGeneratedShoppingItem(item) ? (item.notes || "") : "";
+
+  return `
+    <div class="shopping-item ${item.checked ? "is-checked" : ""}">
+      <label class="shopping-check-wrap">
+        <input
+          type="checkbox"
+          ${item.checked ? "checked" : ""}
+          onchange="toggleShoppingItem(${item.id}, this.checked)"
+        >
+        <span class="shopping-check"></span>
+      </label>
+
+      <div class="shopping-item-main">
+        <strong>${escapeHtml(name)}</strong>
+        ${amount ? `<span class="shopping-item-amount">${escapeHtml(amount)}</span>` : ""}
+        ${isGeneratedShoppingItem(item) ? '<span class="shopping-item-source">De menú</span>' : ""}
+        ${manualNote ? `<span class="shopping-item-note">${escapeHtml(manualNote)}</span>` : ""}
+      </div>
+
+      <button type="button" class="shopping-delete" title="Eliminar" onclick="deleteShoppingItem(${item.id})">×</button>
+    </div>
+  `;
+}
+
+function renderShoppingList(items) {
+  const container = document.getElementById("shopping-list-content");
+  if (!container) return;
+
+  const pending = items.filter(item => !item.checked);
+  const checked = items.filter(item => item.checked);
+
+  container.innerHTML = `
+    <div class="shopping-summary">
+      <div>
+        <strong>${pending.length}</strong>
+        <span>por comprar</span>
+      </div>
+      <div>
+        <strong>${checked.length}</strong>
+        <span>comprado${checked.length === 1 ? "" : "s"}</span>
+      </div>
+      <button type="button" class="secondary shopping-clear-checked" ${checked.length ? "" : "disabled"}>
+        Borrar comprados
+      </button>
+    </div>
+
+    <div class="shopping-section">
+      <div class="shopping-section-head">
+        <h3>Por comprar</h3>
+        <span>${pending.length} ${pending.length === 1 ? "producto" : "productos"}</span>
+      </div>
+
+      ${pending.length
+        ? `<div class="shopping-items">${pending.map(renderShoppingItem).join("")}</div>`
+        : `
+          <div class="shopping-list-empty">
+            <div>🛒</div>
+            <strong>No hay nada pendiente</strong>
+            <p>Añade productos manualmente o genera la lista desde tu menú.</p>
+          </div>
+        `}
+    </div>
+
+    ${checked.length
+      ? `
+        <div class="shopping-section shopping-done-section">
+          <div class="shopping-section-head">
+            <h3>Comprado</h3>
+            <span>${checked.length}</span>
+          </div>
+          <div class="shopping-items">${checked.map(renderShoppingItem).join("")}</div>
+        </div>
+      `
+      : ""}
+  `;
+
+  const clearButton = container.querySelector(".shopping-clear-checked");
+  if (clearButton) clearButton.addEventListener("click", clearCheckedShoppingItems);
+
+  const note = document.getElementById("shopping-week-note");
+  if (note) {
+    const end = addDays(menuWeekStart, 6);
+    note.textContent = `Semana ${menuWeekStart.getDate()}/${String(menuWeekStart.getMonth() + 1).padStart(2, "0")} – ${end.getDate()}/${String(end.getMonth() + 1).padStart(2, "0")}. Genera la compra desde el menú y la app descontará el inventario disponible.`;
+  }
+}
+
+async function toggleShoppingItem(id, checked) {
+  const { error } = await supabaseClient
+    .from("shopping_items")
+    .update({ checked })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error actualizando compra:", error);
+    alert("No se pudo actualizar el producto.\n\n" + error.message);
+    return;
+  }
+
+  await loadShoppingList();
+}
+
+async function deleteShoppingItem(id) {
+  if (!confirm("¿Quieres eliminar este producto de la lista?")) return;
+
+  const { error } = await supabaseClient
+    .from("shopping_items")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error eliminando producto de compra:", error);
+    alert("No se pudo eliminar el producto.\n\n" + error.message);
+    return;
+  }
+
+  await loadShoppingList();
+}
+
+async function clearCheckedShoppingItems() {
+  const { error } = await supabaseClient
+    .from("shopping_items")
+    .delete()
+    .eq("checked", true);
+
+  if (error) {
+    console.error("Error borrando comprados:", error);
+    alert("No se pudieron borrar los productos comprados.\n\n" + error.message);
+    return;
+  }
+
+  await loadShoppingList();
+}
+
+function createShoppingManualModal() {
+  if (document.getElementById("shopping-manual-modal")) return;
+
+  const modal = document.createElement("div");
+  modal.id = "shopping-manual-modal";
+
+  modal.innerHTML = `
+    <div class="shopping-manual-overlay"></div>
+
+    <div class="shopping-manual-box">
+      <div class="inventory-modal-header">
+        <div>
+          <small>LISTA DE COMPRA</small>
+          <h2>Añadir producto</h2>
+        </div>
+        <button type="button" class="modal-close" id="close-shopping-manual">×</button>
+      </div>
+
+      <form id="shopping-manual-form">
+        <label>
+          Producto
+          <input id="shopping-manual-name" type="text" placeholder="Ej. Leche" required>
+        </label>
+
+        <div class="form-row">
+          <label>
+            Cantidad
+            <input id="shopping-manual-quantity" type="number" min="0" step="0.01" placeholder="1">
+          </label>
+
+          <label>
+            Unidad
+            <select id="shopping-manual-unit">
+              <option value="unidad">unidad</option>
+              <option value="g">g</option>
+              <option value="kg">kg</option>
+              <option value="ml">ml</option>
+              <option value="l">l</option>
+              <option value="paquete">paquete</option>
+              <option value="bote">bote</option>
+              <option value="lata">lata</option>
+              <option value="ración">ración</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Notas
+          <textarea id="shopping-manual-notes" rows="3" placeholder="Opcional"></textarea>
+        </label>
+
+        <div class="modal-actions">
+          <button type="button" class="secondary" id="cancel-shopping-manual">Cancelar</button>
+          <button type="submit" class="primary">Añadir a la lista</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const close = () => {
+    modal.classList.remove("open");
+    document.getElementById("shopping-manual-form")?.reset();
+  };
+
+  modal.querySelector("#close-shopping-manual").addEventListener("click", close);
+  modal.querySelector("#cancel-shopping-manual").addEventListener("click", close);
+  modal.querySelector(".shopping-manual-overlay").addEventListener("click", close);
+  modal.querySelector("#shopping-manual-form").addEventListener("submit", saveShoppingManualItem);
+}
+
+function addShoppingManual() {
+  createShoppingManualModal();
+  const modal = document.getElementById("shopping-manual-modal");
+  modal.classList.add("open");
+  document.getElementById("shopping-manual-name").focus();
+}
+
+async function saveShoppingManualItem(event) {
+  event.preventDefault();
+
+  const name = document.getElementById("shopping-manual-name").value.trim();
+  const quantityValue = document.getElementById("shopping-manual-quantity").value;
+  const unit = document.getElementById("shopping-manual-unit").value;
+  const notes = document.getElementById("shopping-manual-notes").value.trim();
+
+  if (!name) {
+    alert("Escribe el nombre del producto.");
+    return;
+  }
+
+  const { ingredient, error: ingredientError } = await findOrCreateIngredient(name, unit);
+
+  if (ingredientError) {
+    console.error("Error creando ingrediente para compra:", ingredientError);
+    alert("No se pudo crear el ingrediente.\n\n" + ingredientError.message);
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("shopping_items")
+    .insert({
+      ingredient_id: ingredient.id,
+      quantity: quantityValue ? Number(quantityValue) : null,
+      unit: unit || null,
+      checked: false,
+      notes: notes || null
+    });
+
+  if (error) {
+    console.error("Error añadiendo compra manual:", error);
+    alert("No se pudo añadir el producto.\n\n" + error.message);
+    return;
+  }
+
+  document.getElementById("shopping-manual-modal").classList.remove("open");
+  document.getElementById("shopping-manual-form")?.reset();
+  await loadShoppingList();
+}
+
+async function generateShoppingList() {
+  const button = document.getElementById("generate-shopping-button");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Calculando…";
+  }
+
+  try {
+    const weekStart = dateToISO(menuWeekStart);
+
+    const { data: plans, error: planError } = await supabaseClient
+      .from("meal_plans")
+      .select("id")
+      .eq("week_start", weekStart)
+      .limit(1);
+
+    if (planError) throw planError;
+
+    const plan = plans?.[0];
+    if (!plan) {
+      alert("Primero crea o genera el menú de esta semana.");
+      return;
+    }
+
+    const { data: menuItems, error: menuError } = await supabaseClient
+      .from("meal_plan_items")
+      .select("recipe_id")
+      .eq("meal_plan_id", plan.id)
+      .in("meal_type", ["comida", "cena"])
+      .not("recipe_id", "is", null);
+
+    if (menuError) throw menuError;
+
+    const recipeIds = [...new Set((menuItems || []).map(item => item.recipe_id).filter(Boolean))];
+
+    if (!recipeIds.length) {
+      alert("El menú de esta semana todavía no tiene recetas.");
+      return;
+    }
+
+    const { data: recipeIngredients, error: ingredientError } = await supabaseClient
+      .from("recipe_ingredients")
+      .select(`
+        recipe_id,
+        quantity,
+        unit,
+        ingredients (
+          id,
+          name,
+          default_unit
+        )
+      `)
+      .in("recipe_id", recipeIds);
+
+    if (ingredientError) throw ingredientError;
+
+    const requirements = new Map();
+
+    for (const row of recipeIngredients || []) {
+      const ingredient = row.ingredients;
+      if (!ingredient?.id) continue;
+
+      const quantity = row.quantity === null || row.quantity === undefined ? null : Number(row.quantity);
+      const unit = row.unit || ingredient.default_unit || "unidad";
+      const unitInfo = shoppingUnitInfo(unit);
+      const key = `${ingredient.id}::${unitInfo.group}`;
+
+      if (!requirements.has(key)) {
+        requirements.set(key, {
+          ingredientId: ingredient.id,
+          name: ingredient.name,
+          quantity,
+          unit,
+          unitInfo
+        });
+      } else {
+        const current = requirements.get(key);
+        if (quantity === null || current.quantity === null) {
+          current.quantity = null;
+        } else {
+          current.quantity += quantity;
+        }
+      }
+    }
+
+    const ingredientIds = [...new Set([...requirements.values()].map(item => item.ingredientId))];
+
+    const { data: inventory, error: inventoryError } = await supabaseClient
+      .from("inventory")
+      .select("ingredient_id, quantity, unit")
+      .in("ingredient_id", ingredientIds);
+
+    if (inventoryError) throw inventoryError;
+
+    const inventoryByKey = new Map();
+
+    for (const item of inventory || []) {
+      if (item.quantity === null || item.quantity === undefined) continue;
+
+      const quantity = Number(item.quantity);
+      const unitInfo = shoppingUnitInfo(item.unit || "unidad");
+      const key = `${item.ingredient_id}::${unitInfo.group}`;
+
+      if (!inventoryByKey.has(key)) {
+        inventoryByKey.set(key, { quantity: quantity * unitInfo.factor });
+      } else {
+        inventoryByKey.get(key).quantity += quantity * unitInfo.factor;
+      }
+    }
+
+    const generatedItems = [];
+
+    for (const requirement of requirements.values()) {
+      const inventoryKey = `${requirement.ingredientId}::${requirement.unitInfo.group}`;
+      const available = inventoryByKey.get(inventoryKey)?.quantity || 0;
+
+      if (requirement.quantity === null) {
+        if (available > 0) continue;
+
+        generatedItems.push({
+          ingredient_id: requirement.ingredientId,
+          quantity: null,
+          unit: requirement.unit,
+          checked: false,
+          notes: getShoppingGeneratedNote()
+        });
+        continue;
+      }
+
+      const requiredBase = requirement.quantity * requirement.unitInfo.factor;
+      const missingBase = Math.max(0, requiredBase - available);
+
+      if (missingBase <= 0) continue;
+
+      generatedItems.push({
+        ingredient_id: requirement.ingredientId,
+        quantity: Number((missingBase / requirement.unitInfo.factor).toFixed(3)),
+        unit: requirement.unit,
+        checked: false,
+        notes: getShoppingGeneratedNote()
+      });
+    }
+
+    const generatedNote = getShoppingGeneratedNote();
+
+    const { error: deleteGeneratedError } = await supabaseClient
+      .from("shopping_items")
+      .delete()
+      .eq("notes", generatedNote);
+
+    if (deleteGeneratedError) throw deleteGeneratedError;
+
+    if (generatedItems.length) {
+      const { error: insertError } = await supabaseClient
+        .from("shopping_items")
+        .insert(generatedItems);
+
+      if (insertError) throw insertError;
+    }
+
+    await loadShoppingList();
+
+    alert(
+      generatedItems.length
+        ? `Lista generada: ${generatedItems.length} ${generatedItems.length === 1 ? "producto pendiente" : "productos pendientes"}.`
+        : "No falta ningún ingrediente del menú teniendo en cuenta tu inventario."
+    );
+  } catch (error) {
+    console.error("Error generando lista de compra:", error);
+    alert("No se pudo generar la lista de compra.\n\n" + (error.message || "Error desconocido"));
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "✦ Generar desde menú";
+    }
+  }
+}
+
+function setupShoppingControls() {
+  const page = document.getElementById("compra");
+  if (!page) return;
+
+  const addButton = page.querySelector(".shopping-header-actions .secondary");
+  if (addButton) addButton.onclick = addShoppingManual;
+
+  const generateButton = document.getElementById("generate-shopping-button");
+  if (generateButton) generateButton.onclick = generateShoppingList;
+}
+
+
+/* =========================================================
    IMPORTACIÓN DE RECETAS
    ========================================================= */
 
@@ -2410,8 +3003,13 @@ document.addEventListener("DOMContentLoaded", () => {
   normalizeRecipeFilters();
   setupRecipeButtons();
   loadRecipes();
+  setupShoppingControls();
 
   if (document.getElementById("inventario")?.classList.contains("active-page")) {
     loadInventory();
+  }
+
+  if (document.getElementById("compra")?.classList.contains("active-page")) {
+    loadShoppingList();
   }
 });

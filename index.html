@@ -91,8 +91,23 @@
       </section>
 
       <section id="compra" class="page">
-        <div class="page-head"><div><small>COMPRA</small><h2>Lista de compra</h2></div><button class="primary">＋ Añadir</button></div>
-        <div class="empty"><div class="empty-icon">□</div><h3>Tu lista está vacía</h3><p>Los ingredientes que falten para tu menú podrán aparecer aquí automáticamente.</p><button class="secondary">＋ Añadir producto</button></div>
+        <div class="page-head shopping-page-head">
+          <div>
+            <small>COMPRA</small>
+            <h2>Lista de compra</h2>
+          </div>
+
+          <div class="shopping-header-actions">
+            <button class="secondary" type="button" onclick="addShoppingManual()">＋ Añadir</button>
+            <button class="primary" type="button" id="generate-shopping-button" onclick="generateShoppingList()">✦ Generar desde menú</button>
+          </div>
+        </div>
+
+        <p class="shopping-help" id="shopping-week-note">
+          Calcula lo que necesitas para el menú de esta semana y descuenta lo que ya tienes en el inventario.
+        </p>
+
+        <div id="shopping-list-content"></div>
       </section>
     </main>
 
