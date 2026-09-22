@@ -972,6 +972,10 @@ function recipeCardHtml(recipe) {
         </div>
 
         <div class="recipe-card-actions">
+          <button type="button" class="primary recipe-view" data-id="${recipe.id}">
+            Ver receta
+          </button>
+
           <button type="button" class="secondary recipe-edit" data-id="${recipe.id}">
             Editar
           </button>
@@ -1021,12 +1025,161 @@ function renderRecipes(recipes) {
 
   container.innerHTML = filtered.map(recipeCardHtml).join("");
 
+  container.querySelectorAll(".recipe-view").forEach(button => {
+    button.addEventListener("click", () => openRecipeDetail(Number(button.dataset.id)));
+  });
+
   container.querySelectorAll(".recipe-edit").forEach(button => {
     button.addEventListener("click", () => openEditRecipeModal(Number(button.dataset.id)));
   });
 
   container.querySelectorAll(".recipe-delete").forEach(button => {
     button.addEventListener("click", () => deleteRecipe(Number(button.dataset.id)));
+  });
+}
+
+
+/* =========================================================
+   FICHA COMPLETA DE RECETA
+   ========================================================= */
+
+async function openRecipeDetail(recipeId) {
+  const { data: recipe, error } = await supabaseClient
+    .from("recipes")
+    .select("*")
+    .eq("id", recipeId)
+    .single();
+
+  if (error) {
+    console.error("Error cargando detalle de receta:", error);
+    alert("No se pudo cargar la receta.\n\n" + error.message);
+    return;
+  }
+
+  const { data: ingredients, error: ingredientsError } = await supabaseClient
+    .from("recipe_ingredients")
+    .select(`
+      quantity,
+      unit,
+      notes,
+      ingredients (
+        name
+      )
+    `)
+    .eq("recipe_id", recipeId);
+
+  if (ingredientsError) {
+    console.error("Error cargando ingredientes:", ingredientsError);
+    alert("No se pudieron cargar los ingredientes.\n\n" + ingredientsError.message);
+    return;
+  }
+
+  showRecipeDetail(recipe, ingredients || []);
+}
+
+function showRecipeDetail(recipe, ingredients) {
+  document.querySelectorAll(".recipe-detail-modal").forEach(modal => modal.remove());
+
+  const modal = document.createElement("div");
+  modal.className = "recipe-detail-modal open";
+
+  const imageHtml = recipe.image_url
+    ? `<img src="${escapeHtml(recipe.image_url)}" alt="${escapeHtml(recipe.name)}">`
+    : `<div class="recipe-detail-placeholder">🍽️</div>`;
+
+  const totalTime = (recipe.prep_time || 0) + (recipe.cook_time || 0);
+
+  const meta = [];
+  if (recipe.servings) meta.push(`🍽 ${recipe.servings} ración${recipe.servings === 1 ? "" : "es"}`);
+  if (recipe.prep_time) meta.push(`⏱ ${recipe.prep_time} min preparación`);
+  if (recipe.cook_time) meta.push(`🔥 ${recipe.cook_time} min cocción`);
+  if (totalTime) meta.push(`⌛ ${totalTime} min total`);
+  if (recipe.temperature) meta.push(`🌡️ ${recipe.temperature} °C`);
+
+  const tags = [];
+  if (recipe.fun_recipe) tags.push("🍿 Receta divertida");
+  if (recipe.is_freezable) tags.push("❄️ Se puede congelar");
+  if (recipe.do_not_suggest) tags.push("🚫 No sugerir");
+
+  modal.innerHTML = `
+    <div class="recipe-detail-overlay"></div>
+
+    <div class="recipe-detail-box">
+      <div class="recipe-detail-top">
+        <button type="button" class="recipe-detail-close" title="Cerrar">×</button>
+      </div>
+
+      <div class="recipe-detail-image">
+        ${imageHtml}
+      </div>
+
+      <div class="recipe-detail-content">
+        <small>RECETA</small>
+        <h2>${escapeHtml(recipe.name)}</h2>
+
+        ${recipe.description ? `<p class="recipe-detail-description">${escapeHtml(recipe.description)}</p>` : ""}
+
+        ${meta.length ? `
+          <div class="recipe-detail-meta">
+            ${meta.map(item => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
+          </div>
+        ` : ""}
+
+        ${tags.length ? `
+          <div class="recipe-detail-tags">
+            ${tags.map(item => `<span class="recipe-detail-tag">${escapeHtml(item)}</span>`).join("")}
+          </div>
+        ` : ""}
+
+        <section class="recipe-detail-section">
+          <h3>Ingredientes</h3>
+
+          ${
+            ingredients.length
+              ? `
+                <div class="recipe-detail-ingredients">
+                  ${ingredients.map(item => `
+                    <div class="recipe-detail-ingredient">
+                      <span>${escapeHtml(item.ingredients?.name || "Ingrediente")}</span>
+                      <strong>${item.quantity !== null && item.quantity !== undefined ? escapeHtml(String(item.quantity)) : ""} ${escapeHtml(item.unit || "")}</strong>
+                      ${item.notes ? `<small>${escapeHtml(item.notes)}</small>` : ""}
+                    </div>
+                  `).join("")}
+                </div>
+              `
+              : `<p class="recipe-detail-muted">Esta receta todavía no tiene ingredientes añadidos.</p>`
+          }
+        </section>
+
+        <section class="recipe-detail-section">
+          <h3>Preparación</h3>
+
+          ${
+            recipe.preparation
+              ? `<div class="recipe-detail-preparation">${escapeHtml(recipe.preparation).replace(/\n/g, "<br>")}</div>`
+              : `<p class="recipe-detail-muted">No se ha añadido la preparación.</p>`
+          }
+        </section>
+
+        <div class="recipe-detail-actions">
+          <button type="button" class="secondary recipe-detail-edit">Editar receta</button>
+          <button type="button" class="primary recipe-detail-close-bottom">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+
+  modal.querySelector(".recipe-detail-close").addEventListener("click", close);
+  modal.querySelector(".recipe-detail-close-bottom").addEventListener("click", close);
+  modal.querySelector(".recipe-detail-overlay").addEventListener("click", close);
+
+  modal.querySelector(".recipe-detail-edit").addEventListener("click", () => {
+    modal.remove();
+    openEditRecipeModal(recipe.id);
   });
 }
 
