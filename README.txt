@@ -1,17 +1,9 @@
-ARA · COMIDAS — MENÚ v5
+ARA · Menú v6
 
-Esta versión añade:
-- Navegación entre semanas con anterior / siguiente.
-- Botón para volver a la semana actual.
-- Rango de fechas visible para la semana seleccionada.
-- Clic en el encabezado de cada día para abrir el detalle.
-- En el detalle se muestran comida y cena.
-- Se muestra la preparación, ingredientes, tiempos y temperatura de cada receta asignada.
-- Desde el detalle se puede abrir la ficha completa de la receta.
-
-No requiere cambios en Supabase ni nuevas tablas.
-
-Sustituye estos tres archivos en GitHub:
-- index.html
-- app.js
-- styles.css
+Novedades:
+- 🥡 Marcar cualquier comida/cena del menú como tupper.
+- El estado de tupper se guarda en Supabase.
+- El menú semanal muestra la etiqueta 🥡 Tupper.
+- El detalle del día permite marcar/desmarcar tupper.
+- El detalle del día incluye “↻ Cambiar comida” para sustituir rápidamente una receta.
+- No requiere nuevas tablas; solo ejecutar ARA_menu_v6_tupper.sql una vez.

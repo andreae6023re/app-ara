@@ -1582,6 +1582,7 @@ async function loadMenu() {
         meal_type,
         recipe_id,
         is_locked,
+        is_tupper,
         notes,
         recipes (
           id,
@@ -1647,13 +1648,16 @@ function renderMenuWeek(items) {
           return `
             <button
               type="button"
-              class="menu-meal-slot ${item?.recipe_id ? "has-recipe" : ""}"
+              class="menu-meal-slot ${item?.recipe_id ? "has-recipe" : ""} ${item?.is_tupper ? "is-tupper" : ""}"
               data-date="${iso}"
               data-meal-type="${type}"
             >
               <span>${getMealLabel(type)}</span>
               <em>${item?.recipes?.name || "+ Añadir receta"}</em>
-              ${item?.is_locked ? '<b class="menu-lock">🔒 Fija</b>' : ""}
+              <div class="menu-slot-badges">
+                ${item?.is_locked ? '<b class="menu-lock">🔒 Fija</b>' : ""}
+                ${item?.is_tupper ? '<b class="menu-tupper">🥡 Tupper</b>' : ""}
+              </div>
             </button>
           `;
         }).join("")}
@@ -1708,6 +1712,7 @@ async function openMenuDayDetail(date) {
         meal_type,
         recipe_id,
         is_locked,
+        is_tupper,
         notes,
         recipes (
           id,
@@ -1811,7 +1816,10 @@ async function openMenuDayDetail(date) {
             <small>${getMealLabel(type)}</small>
             <h3>${escapeHtml(recipe.name)}</h3>
           </div>
-          ${item.is_locked ? '<b class="menu-day-detail-lock">🔒 Fija</b>' : ""}
+          <div class="menu-day-detail-badges">
+            ${item.is_locked ? '<b class="menu-day-detail-lock">🔒 Fija</b>' : ""}
+            ${item.is_tupper ? '<b class="menu-day-detail-tupper">🥡 Tupper</b>' : ""}
+          </div>
         </div>
 
         ${recipe.description ? `<p class="menu-day-detail-description">${escapeHtml(recipe.description)}</p>` : ""}
@@ -1842,6 +1850,8 @@ async function openMenuDayDetail(date) {
         </div>
 
         <div class="menu-day-detail-actions">
+          <button type="button" class="secondary menu-day-change-recipe" data-date="${date}" data-meal-type="${type}">↻ Cambiar comida</button>
+          <button type="button" class="secondary menu-day-toggle-tupper" data-date="${date}" data-meal-type="${type}">${item.is_tupper ? "✓ Es tupper" : "🥡 Marcar tupper"}</button>
           <button type="button" class="secondary menu-day-open-recipe" data-recipe-id="${recipe.id}">Ver ficha completa</button>
         </div>
       </section>
@@ -1879,6 +1889,23 @@ async function openMenuDayDetail(date) {
       const recipeId = Number(button.dataset.recipeId);
       close();
       openRecipeDetail(recipeId);
+    });
+  });
+
+  modal.querySelectorAll(".menu-day-change-recipe").forEach(button => {
+    button.addEventListener("click", () => {
+      const dateValue = button.dataset.date;
+      const mealType = button.dataset.mealType;
+      close();
+      openMenuRecipePicker(dateValue, mealType);
+    });
+  });
+
+  modal.querySelectorAll(".menu-day-toggle-tupper").forEach(button => {
+    button.addEventListener("click", async () => {
+      await toggleMenuTupper(button.dataset.date, button.dataset.mealType);
+      close();
+      openMenuDayDetail(date);
     });
   });
 }
@@ -1935,7 +1962,7 @@ async function getCurrentMenuItem(date, mealType) {
 
   const { data: items, error } = await supabaseClient
     .from("meal_plan_items")
-    .select("id, recipe_id, is_locked")
+    .select("id, recipe_id, is_locked, is_tupper")
     .eq("meal_plan_id", plans[0].id)
     .eq("date", date)
     .eq("meal_type", mealType)
@@ -2098,6 +2125,32 @@ async function openMenuRecipePicker(date, mealType) {
   }
 }
 
+async function toggleMenuTupper(date, mealType) {
+  const current = await getCurrentMenuItem(date, mealType);
+
+  if (current.error) {
+    alert("No se pudo leer el estado del tupper.\n\n" + current.error.message);
+    return;
+  }
+
+  if (!current.item) return;
+
+  const { error } = await supabaseClient
+    .from("meal_plan_items")
+    .update({
+      is_tupper: !current.item.is_tupper
+    })
+    .eq("id", current.item.id);
+
+  if (error) {
+    console.error("Error cambiando tupper:", error);
+    alert("No se pudo cambiar el estado de tupper.\n\n" + error.message);
+    return;
+  }
+
+  await loadMenu();
+}
+
 async function toggleMenuLock(date, mealType) {
   const current = await getCurrentMenuItem(date, mealType);
 
@@ -2233,6 +2286,7 @@ async function generateWeeklyMenu() {
         meal_type,
         recipe_id,
         is_locked,
+        is_tupper,
         recipes (
           id,
           name,
@@ -2379,7 +2433,8 @@ async function generateWeeklyMenu() {
             date: slot.date,
             meal_type: slot.mealType,
             recipe_id: chosen.id,
-            is_locked: false
+            is_locked: false,
+            is_tupper: false
           });
 
         if (error) throw error;

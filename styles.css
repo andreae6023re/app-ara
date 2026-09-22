@@ -1876,3 +1876,87 @@
     padding: 15px;
   }
 }
+
+
+/* =========================================================
+   TUPPER + CAMBIO RÁPIDO DE COMIDA
+   ========================================================= */
+
+.menu-slot-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.menu-lock,
+.menu-tupper {
+  position: static;
+  display: inline-block;
+  margin: 0;
+  padding: 3px 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  line-height: 1.1;
+}
+
+.menu-lock {
+  color: #66735f;
+  background: #e4e9df;
+}
+
+.menu-tupper {
+  color: #75674e;
+  background: #eee6d7;
+}
+
+.menu-meal-slot.is-tupper {
+  border-color: #d8c8a8;
+}
+
+.menu-day-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.menu-day-detail-lock,
+.menu-day-detail-tupper {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.menu-day-detail-lock {
+  color: #66735f;
+  background: #e4e9df;
+}
+
+.menu-day-detail-tupper {
+  color: #75674e;
+  background: #eee6d7;
+}
+
+.menu-day-detail-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+@media(max-width:700px) {
+  .menu-day-detail-actions {
+    flex-direction: column;
+  }
+
+  .menu-day-detail-actions button {
+    width: 100%;
+  }
+
+  .menu-day-detail-badges {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}
