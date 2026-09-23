@@ -195,6 +195,10 @@
       "expiration_date", "fecha_caducidad", "caducidad", "fecha_de_caducidad", "expires"
     ]));
 
+    const presentation = String(valueFrom(obj, [
+      "presentation", "presentacion", "presentación", "formato", "envase", "packaging"
+    ]) || "").trim();
+
     const notes = String(valueFrom(obj, [
       "notes", "notas", "observaciones", "nota"
     ]) || "").trim();
@@ -203,6 +207,7 @@
       name,
       quantity: parseNumber(quantityValue),
       unit: UNITS.includes(unit) ? unit : "unidad",
+      presentation: presentation || null,
       location,
       expiration_date: expiration,
       notes: notes || null
@@ -540,6 +545,7 @@
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>
                   ${item.quantity ?? "—"} ${escapeHtml(item.unit)}
+                  ${item.presentation ? `· ${escapeHtml(item.presentation)}` : ""}
                   · ${escapeHtml(item.location)}
                 </span>
               </div>
@@ -597,6 +603,7 @@
               ingredient_id: ingredient.id,
               quantity: item.quantity,
               unit: item.unit || null,
+              presentation: item.presentation || null,
               location: item.location,
               expiration_date: item.expiration_date || null,
               notes: item.notes || null

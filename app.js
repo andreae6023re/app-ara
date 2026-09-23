@@ -311,6 +311,12 @@ function createInventoryModal() {
         </label>
 
         <label>
+          Presentación / envase
+          <input id="product-presentation" type="text" maxlength="50" placeholder="Ej. bolsa, bote, caja...">
+          <small class="field-hint">Puedes tener el mismo ingrediente varias veces con presentaciones distintas.</small>
+        </label>
+
+        <label>
           Ubicación
           <select id="product-location">
             <option value="despensa">🥫 Despensa</option>
@@ -431,11 +437,12 @@ function resetInventoryModal(mode = "add") {
   setInventoryUnitValue("unidad");
 }
 
-function openInventoryModal(location = "despensa") {
+function openInventoryModal(location = "despensa", prefillName = "") {
   createInventoryModal();
   resetInventoryModal("add");
 
   document.getElementById("product-location").value = location;
+  document.getElementById("product-name").value = prefillName || "";
   document.getElementById("inventory-modal").classList.add("open");
   document.getElementById("product-name").focus();
 }
@@ -447,6 +454,7 @@ async function editInventoryProduct(id) {
       id,
       quantity,
       unit,
+      presentation,
       location,
       expiration_date,
       notes,
@@ -476,6 +484,7 @@ async function editInventoryProduct(id) {
   document.getElementById("product-name").value = data.ingredients?.name || "Producto";
   document.getElementById("product-quantity").value = data.quantity ?? "";
   setInventoryUnitValue(data.unit || "unidad");
+  document.getElementById("product-presentation").value = data.presentation || "";
   document.getElementById("product-location").value = data.location || "despensa";
   document.getElementById("product-expiration").value = data.expiration_date || "";
   document.getElementById("product-notes").value = data.notes || "";
@@ -504,6 +513,7 @@ async function saveInventoryProduct(event) {
   const previousLocation = form?.dataset.editLocation || currentInventoryLocation || "despensa";
   const quantityValue = document.getElementById("product-quantity").value;
   const unit = getInventoryUnitValue();
+  const presentation = document.getElementById("product-presentation").value.trim();
   const location = document.getElementById("product-location").value;
   const expiration = document.getElementById("product-expiration").value;
   const notes = document.getElementById("product-notes").value.trim();
@@ -519,6 +529,7 @@ async function saveInventoryProduct(event) {
       .update({
         quantity: quantityValue ? Number(quantityValue) : null,
         unit,
+        presentation: presentation || null,
         location,
         expiration_date: expiration || null,
         notes: notes || null,
@@ -587,6 +598,7 @@ async function saveInventoryProduct(event) {
       ingredient_id: ingredient.id,
       quantity: quantityValue ? Number(quantityValue) : null,
       unit,
+      presentation: presentation || null,
       location,
       expiration_date: expiration || null,
       notes: notes || null
@@ -610,6 +622,7 @@ async function loadInventory() {
       id,
       quantity,
       unit,
+      presentation,
       location,
       expiration_date,
       notes,
@@ -687,6 +700,7 @@ async function viewInventoryProducts(location) {
       id,
       quantity,
       unit,
+      presentation,
       location,
       expiration_date,
       notes,
@@ -743,15 +757,26 @@ function showInventoryProducts(location, products) {
                 const quantity = product.quantity !== null
                   ? `${product.quantity} ${product.unit || ""}`.trim()
                   : "";
+                const presentation = product.presentation
+                  ? ` · ${product.presentation}`
+                  : "";
 
                 return `
                   <div class="product-row">
                     <div>
                       <strong>${name}</strong>
-                      <span>${quantity}</span>
+                      <span>${quantity}${presentation}</span>
                     </div>
 
                     <div class="product-actions">
+                      <button
+                        type="button"
+                        class="duplicate-product"
+                        title="Añadir otra presentación de este producto"
+                        onclick="addInventoryPresentation(${product.id})"
+                      >
+                        ＋📦
+                      </button>
                       <button
                         type="button"
                         class="edit-product"
@@ -805,6 +830,36 @@ function showInventoryProducts(location, products) {
       openInventoryModal(location);
     });
 }
+
+async function addInventoryPresentation(id) {
+  const { data, error } = await supabaseClient
+    .from("inventory")
+    .select(`
+      id,
+      location,
+      ingredients (
+        name
+      )
+    `)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("Error cargando producto para nueva presentación:", error);
+    alert("No se pudo preparar la nueva presentación.\n\n" + (error?.message || "Producto no encontrado."));
+    return;
+  }
+
+  document.querySelectorAll(".inventory-products-modal")
+    .forEach(modal => modal.remove());
+
+  openInventoryModal(
+    data.location || currentInventoryLocation || "despensa",
+    data.ingredients?.name || ""
+  );
+}
+
+window.addInventoryPresentation = addInventoryPresentation;
 
 async function deleteInventoryProduct(id) {
   const confirmed = confirm(
