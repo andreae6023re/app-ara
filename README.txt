@@ -1,32 +1,24 @@
-ARA · Inventario · edición de artículos v1
+# ARA · Comidas — versión instalable (PWA)
 
-Novedades:
-- Botón ✏️ para editar cada artículo del inventario.
-- Se puede cambiar cantidad, unidad, ubicación, caducidad y notas.
-- Unidades habituales: unidad, g/gr, kg, ml, l, paquete, bolsa, bote, lata, botella, sobre y ración.
-- También permite escribir una unidad personalizada con «Otra unidad…».
-- El nombre del producto queda bloqueado al editar para no cambiar accidentalmente el ingrediente compartido con las recetas.
-- Mantiene el importador de inventario y el repaso semanal de despensa/congelador.
+Esta actualización convierte ARA en una aplicación web instalable (PWA).
 
-Supabase:
-Ejecuta ARA_inventario_edicion_policies.sql en el SQL Editor de Supabase para permitir actualizaciones de inventario.
+Archivos de este paquete:
+- `index.html` → sustituir el actual.
+- `manifest.webmanifest`
+- `service-worker.js`
+- `icon-192.png`
+- `icon-512.png`
+- `icon-512-maskable.png`
 
+No hay que cambiar `app.js`, `styles.css` ni `inventario-importacion.js`; se mantienen los que ya tienes en el repositorio.
 
-NUEVO · Presentaciones individuales de inventario
-Ahora el mismo ingrediente puede aparecer varias veces en el inventario como artículos independientes. Por ejemplo:
-- Copos de avena · 1 kg · bolsa
-- Copos de avena · 250 g · bolsa
+## En GitHub Pages
+1. Sustituye el `index.html` actual por el de este paquete.
+2. Sube al mismo directorio los otros 4 archivos.
+3. Espera a que GitHub Pages publique el cambio.
+4. Abre `https://andreae6023re.github.io/app-ara/`.
 
-Cada fila se puede editar por separado. En cada producto aparece el botón ＋📦 para añadir otra presentación del mismo ingrediente sin tener que volver a escribir el nombre.
+En Chrome/Edge aparecerá la opción de instalar ARA cuando el navegador detecte la PWA.
+En móvil también puedes usar la opción de instalar / añadir a pantalla de inicio del navegador.
 
-IMPORTANTE: ejecuta una vez ARA_inventario_presentaciones.sql en Supabase antes de usar este campo. No hace falta crear otra tabla.
-
-En las importaciones puedes añadir una columna llamada presentation, presentacion, formato o envase.
-
-
-Novedad v4: clasificación de especias.
-- Añade is_spice (boolean) a inventory.
-- En alta/edición de artículos de despensa puedes marcar "🌿 Es una especia".
-- Las especias aparecen con una etiqueta 🌿 Especia en la lista.
-- El importador acepta columnas como is_spice, especia, es_especia, categoria o tipo.
-- Ejecuta ARA_inventario_especias.sql una vez en Supabase.
+El `start_url` y el `scope` son relativos, por lo que funcionan con el sitio de GitHub Pages `/app-ara/`.

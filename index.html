@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#8d9b86">
   <meta name="description" content="ARA · Comidas">
+  <meta name="application-name" content="ARA · Comidas">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ARA · Comidas">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <title>ARA · Comidas</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -171,5 +178,14 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
   <script src="inventario-importacion.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+          console.error("ARA: no se pudo registrar el service worker", error);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
