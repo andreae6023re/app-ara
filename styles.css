@@ -152,12 +152,29 @@
   font-size: 13px;
 }
 
+.product-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.edit-product,
 .delete-product {
   border: 0;
   background: transparent;
   cursor: pointer;
   font-size: 17px;
   padding: 7px;
+  border-radius: 9px;
+}
+
+.edit-product:hover {
+  background: #e4e9df;
+}
+
+.delete-product:hover {
+  background: #f1e3df;
 }
 
 .products-empty {

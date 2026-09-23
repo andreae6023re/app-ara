@@ -267,8 +267,8 @@ function createInventoryModal() {
     <div class="inventory-modal-box">
       <div class="inventory-modal-header">
         <div>
-          <small>AÑADIR PRODUCTO</small>
-          <h2>Nuevo producto</h2>
+          <small id="inventory-modal-label">AÑADIR PRODUCTO</small>
+          <h2 id="inventory-modal-title">Nuevo producto</h2>
         </div>
         <button type="button" id="close-inventory-modal" class="modal-close">×</button>
       </div>
@@ -276,7 +276,7 @@ function createInventoryModal() {
       <form id="inventory-form">
         <label>
           Producto
-          <input id="product-name" type="text" placeholder="Ej. Arroz" required>
+          <input id="product-name" type="text" placeholder="Ej. Arroz" required readonly>
         </label>
 
         <div class="form-row">
@@ -288,18 +288,27 @@ function createInventoryModal() {
           <label>
             Unidad
             <select id="product-unit">
-              <option value="unidad">unidad</option>
-              <option value="g">g</option>
+              <option value="unidad">unidad / unidades</option>
+              <option value="g">g / gr</option>
               <option value="kg">kg</option>
               <option value="ml">ml</option>
               <option value="l">l</option>
               <option value="paquete">paquete</option>
-              <option value="bote">bote</option>
-              <option value="lata">lata</option>
+              <option value="bolsa">bolsa</option>
+              <option value="bote">bote / botes</option>
+              <option value="lata">lata / latas</option>
+              <option value="botella">botella / botellas</option>
+              <option value="sobre">sobre / sobres</option>
               <option value="ración">ración</option>
+              <option value="otra">Otra unidad…</option>
             </select>
           </label>
         </div>
+
+        <label id="custom-unit-wrap" style="display:none">
+          Otra unidad
+          <input id="product-custom-unit" type="text" maxlength="30" placeholder="Ej. bandeja, lonchas, cucharadas...">
+        </label>
 
         <label>
           Ubicación
@@ -322,7 +331,7 @@ function createInventoryModal() {
 
         <div class="modal-actions">
           <button type="button" id="cancel-inventory" class="secondary">Cancelar</button>
-          <button type="submit" class="primary">Guardar producto</button>
+          <button type="submit" id="inventory-save-button" class="primary">Guardar producto</button>
         </div>
       </form>
     </div>
@@ -341,14 +350,138 @@ function createInventoryModal() {
 
   document.getElementById("inventory-form")
     .addEventListener("submit", saveInventoryProduct);
+
+  document.getElementById("product-unit")
+    .addEventListener("change", toggleCustomInventoryUnit);
+}
+
+function toggleCustomInventoryUnit() {
+  const select = document.getElementById("product-unit");
+  const wrap = document.getElementById("custom-unit-wrap");
+  if (!select || !wrap) return;
+
+  const isCustom = select.value === "otra";
+  wrap.style.display = isCustom ? "grid" : "none";
+
+  if (!isCustom) {
+    const input = document.getElementById("product-custom-unit");
+    if (input) input.value = "";
+  }
+}
+
+function setInventoryUnitValue(unit) {
+  const select = document.getElementById("product-unit");
+  const customInput = document.getElementById("product-custom-unit");
+  if (!select) return;
+
+  const normalizedUnit = String(unit ?? "").trim();
+  const optionExists = Array.from(select.options).some(option => option.value === normalizedUnit);
+
+  if (optionExists) {
+    select.value = normalizedUnit || "unidad";
+    if (customInput) customInput.value = "";
+  } else if (normalizedUnit) {
+    select.value = "otra";
+    if (customInput) customInput.value = normalizedUnit;
+  } else {
+    select.value = "unidad";
+    if (customInput) customInput.value = "";
+  }
+
+  toggleCustomInventoryUnit();
+}
+
+function getInventoryUnitValue() {
+  const select = document.getElementById("product-unit");
+  const customInput = document.getElementById("product-custom-unit");
+
+  if (!select) return "unidad";
+  if (select.value === "otra") {
+    return (customInput?.value || "").trim() || "unidad";
+  }
+
+  return select.value;
+}
+
+function resetInventoryModal(mode = "add") {
+  const form = document.getElementById("inventory-form");
+  if (form) {
+    form.reset();
+    delete form.dataset.editId;
+    delete form.dataset.editLocation;
+  }
+
+  const label = document.getElementById("inventory-modal-label");
+  const title = document.getElementById("inventory-modal-title");
+  const saveButton = document.getElementById("inventory-save-button");
+  const nameInput = document.getElementById("product-name");
+
+  if (mode === "edit") {
+    if (label) label.textContent = "EDITAR INVENTARIO";
+    if (title) title.textContent = "Editar artículo";
+    if (saveButton) saveButton.textContent = "Guardar cambios";
+    if (nameInput) nameInput.readOnly = true;
+  } else {
+    if (label) label.textContent = "AÑADIR PRODUCTO";
+    if (title) title.textContent = "Nuevo producto";
+    if (saveButton) saveButton.textContent = "Guardar producto";
+    if (nameInput) nameInput.readOnly = false;
+  }
+
+  setInventoryUnitValue("unidad");
 }
 
 function openInventoryModal(location = "despensa") {
   createInventoryModal();
+  resetInventoryModal("add");
 
   document.getElementById("product-location").value = location;
   document.getElementById("inventory-modal").classList.add("open");
   document.getElementById("product-name").focus();
+}
+
+async function editInventoryProduct(id) {
+  const { data, error } = await supabaseClient
+    .from("inventory")
+    .select(`
+      id,
+      quantity,
+      unit,
+      location,
+      expiration_date,
+      notes,
+      ingredients (
+        id,
+        name
+      )
+    `)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("Error cargando producto para editar:", error);
+    alert("No se pudo cargar el artículo para editar.\n\n" + (error?.message || "Producto no encontrado."));
+    return;
+  }
+
+  createInventoryModal();
+  resetInventoryModal("edit");
+
+  const form = document.getElementById("inventory-form");
+  if (form) {
+    form.dataset.editId = String(data.id);
+    form.dataset.editLocation = data.location || currentInventoryLocation || "despensa";
+  }
+
+  document.getElementById("product-name").value = data.ingredients?.name || "Producto";
+  document.getElementById("product-quantity").value = data.quantity ?? "";
+  setInventoryUnitValue(data.unit || "unidad");
+  document.getElementById("product-location").value = data.location || "despensa";
+  document.getElementById("product-expiration").value = data.expiration_date || "";
+  document.getElementById("product-notes").value = data.notes || "";
+
+  document.getElementById("inventory-modal").classList.add("open");
+  document.getElementById("product-quantity").focus();
 }
 
 function closeInventoryModal() {
@@ -359,17 +492,57 @@ function closeInventoryModal() {
 
   const form = document.getElementById("inventory-form");
   if (form) form.reset();
+
+  resetInventoryModal("add");
 }
 
 async function saveInventoryProduct(event) {
   event.preventDefault();
 
-  const name = document.getElementById("product-name").value.trim();
+  const form = document.getElementById("inventory-form");
+  const editId = form?.dataset.editId || null;
+  const previousLocation = form?.dataset.editLocation || currentInventoryLocation || "despensa";
   const quantityValue = document.getElementById("product-quantity").value;
-  const unit = document.getElementById("product-unit").value;
+  const unit = getInventoryUnitValue();
   const location = document.getElementById("product-location").value;
   const expiration = document.getElementById("product-expiration").value;
   const notes = document.getElementById("product-notes").value.trim();
+
+  if (!unit) {
+    alert("Indica una unidad.");
+    return;
+  }
+
+  if (editId) {
+    const { error } = await supabaseClient
+      .from("inventory")
+      .update({
+        quantity: quantityValue ? Number(quantityValue) : null,
+        unit,
+        location,
+        expiration_date: expiration || null,
+        notes: notes || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", Number(editId));
+
+    if (error) {
+      console.error("Error actualizando inventario:", error);
+      alert("No se pudo guardar el cambio.\n\n" + error.message);
+      return;
+    }
+
+    closeInventoryModal();
+    await loadInventory();
+
+    document.querySelectorAll(".inventory-products-modal")
+      .forEach(modal => modal.remove());
+
+    await viewInventoryProducts(location || previousLocation);
+    return;
+  }
+
+  const name = document.getElementById("product-name").value.trim();
 
   if (!name) {
     alert("Escribe el nombre del producto.");
@@ -578,13 +751,25 @@ function showInventoryProducts(location, products) {
                       <span>${quantity}</span>
                     </div>
 
-                    <button
-                      type="button"
-                      class="delete-product"
-                      onclick="deleteInventoryProduct(${product.id})"
-                    >
-                      🗑️
-                    </button>
+                    <div class="product-actions">
+                      <button
+                        type="button"
+                        class="edit-product"
+                        title="Editar artículo"
+                        onclick="editInventoryProduct(${product.id})"
+                      >
+                        ✏️
+                      </button>
+
+                      <button
+                        type="button"
+                        class="delete-product"
+                        title="Eliminar artículo"
+                        onclick="deleteInventoryProduct(${product.id})"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 `;
               }).join("")
