@@ -472,6 +472,11 @@ async function editInventoryProduct(id) {
     return;
   }
 
+  // Al editar desde la lista de inventario, cerramos primero ese modal
+  // para que no quede por delante del formulario de edición.
+  document.querySelectorAll(".inventory-products-modal")
+    .forEach(modal => modal.remove());
+
   createInventoryModal();
   resetInventoryModal("edit");
 
