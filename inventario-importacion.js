@@ -164,6 +164,13 @@
     return "";
   }
 
+  function parseBoolean(value) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    const key = normalizeKey(value);
+    return ["si", "sí", "true", "1", "x", "yes", "especia"].includes(key);
+  }
+
   function normalizeItem(raw, fallbackLocation) {
     const obj = {};
     for (const [key, value] of Object.entries(raw || {})) {
@@ -199,6 +206,11 @@
       "presentation", "presentacion", "presentación", "formato", "envase", "packaging"
     ]) || "").trim();
 
+    const isSpiceValue = valueFrom(obj, [
+      "is_spice", "especia", "es_especia", "especias", "spice", "categoria", "categoría", "tipo"
+    ]);
+    const isSpice = isSpiceValue !== "" && parseBoolean(isSpiceValue);
+
     const notes = String(valueFrom(obj, [
       "notes", "notas", "observaciones", "nota"
     ]) || "").trim();
@@ -208,6 +220,7 @@
       quantity: parseNumber(quantityValue),
       unit: UNITS.includes(unit) ? unit : "unidad",
       presentation: presentation || null,
+      is_spice: location === "despensa" ? isSpice : false,
       location,
       expiration_date: expiration,
       notes: notes || null
@@ -477,7 +490,7 @@
         <div class="inventory-import-help">
           <p><strong>Formatos:</strong> Excel (XLSX/XLS), CSV o JSON.</p>
           <p>La importación añade productos al inventario actual; no borra lo que ya tienes.</p>
-          <p>Columnas reconocidas: producto/nombre, cantidad, unidad, ubicación, caducidad y notas.</p>
+          <p>Columnas reconocidas: producto/nombre, cantidad, unidad, presentación/envase, especia, ubicación, caducidad y notas.</p>
         </div>
 
         <label class="inventory-import-file">
@@ -546,6 +559,7 @@
                 <span>
                   ${item.quantity ?? "—"} ${escapeHtml(item.unit)}
                   ${item.presentation ? `· ${escapeHtml(item.presentation)}` : ""}
+                  ${item.is_spice ? "· 🌿 Especia" : ""}
                   · ${escapeHtml(item.location)}
                 </span>
               </div>
@@ -604,6 +618,7 @@
               quantity: item.quantity,
               unit: item.unit || null,
               presentation: item.presentation || null,
+              is_spice: item.is_spice === true,
               location: item.location,
               expiration_date: item.expiration_date || null,
               notes: item.notes || null

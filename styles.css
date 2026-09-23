@@ -2039,5 +2039,6 @@
   .inventory-review-actions button { width: 100%; }
 }
 
-.field-hint{font-size:11px;color:#858981;font-weight:400;line-height:1.35;margin-top:3px}
+.field-hint{font-size:11px;color:#858981;font-weight:400;line-height:1.35;margin-top:3px}.inventory-check-label{gap:6px!important}.inventory-check-title{font-size:13px;color:#555a52;font-weight:bold}.inventory-check-row{display:flex;align-items:center;gap:9px;color:#555a52;font-weight:600}.inventory-check-row input{width:18px!important;height:18px;margin:0;accent-color:#8d9b86}.inventory-check-row span{font-size:13px}.product-spice-badge{display:inline-block;width:max-content;color:#66735f;background:#e4e9df;border-radius:999px;padding:3px 7px;font-size:10px;font-style:normal;font-weight:700}.product-row > div:first-child{min-width:0}.product-row strong{line-height:1.25}.product-row span{line-height:1.25}
+
 .duplicate-product{border:0;background:#eef1eb;border-radius:9px;padding:7px 9px;cursor:pointer;font-size:14px}.duplicate-product:hover{background:#e1e7dc}

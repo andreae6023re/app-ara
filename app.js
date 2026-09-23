@@ -316,6 +316,15 @@ function createInventoryModal() {
           <small class="field-hint">Puedes tener el mismo ingrediente varias veces con presentaciones distintas.</small>
         </label>
 
+        <label class="inventory-check-label" id="inventory-spice-wrap">
+          <span class="inventory-check-title">Clasificación</span>
+          <span class="inventory-check-row">
+            <input id="product-is-spice" type="checkbox">
+            <span>🌿 Es una especia</span>
+          </span>
+          <small class="field-hint">Úsalo para especias y condimentos de la despensa.</small>
+        </label>
+
         <label>
           Ubicación
           <select id="product-location">
@@ -359,6 +368,9 @@ function createInventoryModal() {
 
   document.getElementById("product-unit")
     .addEventListener("change", toggleCustomInventoryUnit);
+
+  document.getElementById("product-location")
+    .addEventListener("change", updateInventorySpiceVisibility);
 }
 
 function toggleCustomInventoryUnit() {
@@ -409,6 +421,18 @@ function getInventoryUnitValue() {
   return select.value;
 }
 
+function updateInventorySpiceVisibility() {
+  const location = document.getElementById("product-location")?.value;
+  const wrap = document.getElementById("inventory-spice-wrap");
+  const checkbox = document.getElementById("product-is-spice");
+  if (!wrap || !checkbox) return;
+
+  const isPantry = location === "despensa";
+  wrap.style.display = isPantry ? "grid" : "none";
+
+  if (!isPantry) checkbox.checked = false;
+}
+
 function resetInventoryModal(mode = "add") {
   const form = document.getElementById("inventory-form");
   if (form) {
@@ -435,6 +459,10 @@ function resetInventoryModal(mode = "add") {
   }
 
   setInventoryUnitValue("unidad");
+
+  const spiceCheckbox = document.getElementById("product-is-spice");
+  if (spiceCheckbox) spiceCheckbox.checked = false;
+  updateInventorySpiceVisibility();
 }
 
 function openInventoryModal(location = "despensa", prefillName = "") {
@@ -455,6 +483,7 @@ async function editInventoryProduct(id) {
       quantity,
       unit,
       presentation,
+      is_spice,
       location,
       expiration_date,
       notes,
@@ -490,7 +519,9 @@ async function editInventoryProduct(id) {
   document.getElementById("product-quantity").value = data.quantity ?? "";
   setInventoryUnitValue(data.unit || "unidad");
   document.getElementById("product-presentation").value = data.presentation || "";
+  document.getElementById("product-is-spice").checked = Boolean(data.is_spice);
   document.getElementById("product-location").value = data.location || "despensa";
+  updateInventorySpiceVisibility();
   document.getElementById("product-expiration").value = data.expiration_date || "";
   document.getElementById("product-notes").value = data.notes || "";
 
@@ -520,6 +551,7 @@ async function saveInventoryProduct(event) {
   const unit = getInventoryUnitValue();
   const presentation = document.getElementById("product-presentation").value.trim();
   const location = document.getElementById("product-location").value;
+  const isSpice = location === "despensa" && document.getElementById("product-is-spice").checked;
   const expiration = document.getElementById("product-expiration").value;
   const notes = document.getElementById("product-notes").value.trim();
 
@@ -535,6 +567,7 @@ async function saveInventoryProduct(event) {
         quantity: quantityValue ? Number(quantityValue) : null,
         unit,
         presentation: presentation || null,
+        is_spice: isSpice,
         location,
         expiration_date: expiration || null,
         notes: notes || null,
@@ -604,6 +637,7 @@ async function saveInventoryProduct(event) {
       quantity: quantityValue ? Number(quantityValue) : null,
       unit,
       presentation: presentation || null,
+      is_spice: isSpice,
       location,
       expiration_date: expiration || null,
       notes: notes || null
@@ -628,6 +662,7 @@ async function loadInventory() {
       quantity,
       unit,
       presentation,
+      is_spice,
       location,
       expiration_date,
       notes,
@@ -706,6 +741,7 @@ async function viewInventoryProducts(location) {
       quantity,
       unit,
       presentation,
+      is_spice,
       location,
       expiration_date,
       notes,
@@ -765,12 +801,16 @@ function showInventoryProducts(location, products) {
                 const presentation = product.presentation
                   ? ` · ${product.presentation}`
                   : "";
+                const spiceBadge = product.is_spice
+                  ? `<em class="product-spice-badge">🌿 Especia</em>`
+                  : "";
 
                 return `
                   <div class="product-row">
                     <div>
                       <strong>${name}</strong>
                       <span>${quantity}${presentation}</span>
+                      ${spiceBadge}
                     </div>
 
                     <div class="product-actions">

@@ -22,3 +22,11 @@ Cada fila se puede editar por separado. En cada producto aparece el botón ＋�
 IMPORTANTE: ejecuta una vez ARA_inventario_presentaciones.sql en Supabase antes de usar este campo. No hace falta crear otra tabla.
 
 En las importaciones puedes añadir una columna llamada presentation, presentacion, formato o envase.
+
+
+Novedad v4: clasificación de especias.
+- Añade is_spice (boolean) a inventory.
+- En alta/edición de artículos de despensa puedes marcar "🌿 Es una especia".
+- Las especias aparecen con una etiqueta 🌿 Especia en la lista.
+- El importador acepta columnas como is_spice, especia, es_especia, categoria o tipo.
+- Ejecuta ARA_inventario_especias.sql una vez en Supabase.
