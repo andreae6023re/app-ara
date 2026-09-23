@@ -1,9 +1,7 @@
-ARA · Menú v6
+ARA · Importar inventario v1
 
-Novedades:
-- 🥡 Marcar cualquier comida/cena del menú como tupper.
-- El estado de tupper se guarda en Supabase.
-- El menú semanal muestra la etiqueta 🥡 Tupper.
-- El detalle del día permite marcar/desmarcar tupper.
-- El detalle del día incluye “↻ Cambiar comida” para sustituir rápidamente una receta.
-- No requiere nuevas tablas; solo ejecutar ARA_menu_v6_tupper.sql una vez.
+Sustituye el index.html por este y añade inventario-importacion.js al repositorio.
+No sustituye app.js ni styles.css.
+
+El botón permite importar XLSX/XLS, CSV, TXT o JSON.
+La importación añade productos al inventario actual y no elimina los existentes.

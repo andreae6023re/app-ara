@@ -43,24 +43,19 @@
           </div>
           <div class="hero-symbol">✦</div>
         </div>
-
         <div class="home-dashboard" id="home-dashboard">
           <div class="section-title"><small>HOY</small><h2>¿Qué toca?</h2></div>
-
           <div class="home-meals" id="home-today-meals">
             <div class="home-loading">Cargando tu menú de hoy…</div>
           </div>
-
           <div class="home-stats" id="home-stats">
             <div class="home-loading">Cargando resumen…</div>
           </div>
-
           <div class="section-title home-inventory-title"><small>INVENTARIO</small><h2>Lo que tienes</h2></div>
           <div class="home-inventory" id="home-inventory">
             <div class="home-loading">Cargando inventario…</div>
           </div>
         </div>
-
         <div class="section-title"><small>ACCESOS RÁPIDOS</small><h2>¿Qué quieres hacer?</h2></div>
         <div class="quick-grid">
           <button onclick="showPage('menu')"><b>▣</b><span><strong>Planificar menú</strong><em>Organiza esta semana</em></span>›</button>
@@ -76,7 +71,6 @@
             <small>SEMANA</small>
             <h2>Menú semanal</h2>
           </div>
-
           <div class="menu-header-actions">
             <div class="menu-week-navigation">
               <button type="button" class="secondary menu-week-arrow" id="menu-prev-week" title="Semana anterior">‹</button>
@@ -86,12 +80,10 @@
             <button type="button" class="primary menu-generate-button">✦ Generar menú</button>
           </div>
         </div>
-
         <div class="menu-week-info">
           <span id="menu-week-label"></span>
           <span>Haz clic en el día para ver el detalle.</span>
         </div>
-
         <p class="menu-help-text" id="menu-generation-note">Las recetas que elijas manualmente quedan fijadas 🔒. El generador solo rellenará o cambiará las que no estén fijadas.</p>
         <div class="week"></div>
       </section>
@@ -121,7 +113,10 @@
       </section>
 
       <section id="inventario" class="page">
-        <div class="page-head"><div><small>INVENTARIO</small><h2>Lo que tienes</h2></div><button class="primary">＋ Añadir producto</button></div>
+        <div class="page-head">
+          <div><small>INVENTARIO</small><h2>Lo que tienes</h2></div>
+          <button class="primary">＋ Añadir producto</button>
+        </div>
         <div class="inventory">
           <article><div class="emoji">🥫</div><h3>Despensa</h3><p>Productos secos, conservas y básicos.</p><button>Ver productos →</button></article>
           <article><div class="emoji">🥬</div><h3>Frigorífico</h3><p>Lo que tienes fresco.</p><button>Ver productos →</button></article>
@@ -135,17 +130,14 @@
             <small>COMPRA</small>
             <h2>Lista de compra</h2>
           </div>
-
           <div class="shopping-header-actions">
             <button class="secondary" type="button" onclick="addShoppingManual()">＋ Añadir</button>
             <button class="primary" type="button" id="generate-shopping-button" onclick="generateShoppingList()">✦ Generar desde menú</button>
           </div>
         </div>
-
         <p class="shopping-help" id="shopping-week-note">
           Calcula lo que necesitas para el menú de esta semana y descuenta lo que ya tienes en el inventario.
         </p>
-
         <div id="shopping-list-content"></div>
       </section>
     </main>
@@ -161,5 +153,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
+  <script src="inventario-importacion.js"></script>
 </body>
 </html>
