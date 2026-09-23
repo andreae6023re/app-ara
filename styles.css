@@ -1960,3 +1960,64 @@
     margin-left: 0;
   }
 }
+
+
+/* =========================================================
+   REPASO SEMANAL DE INVENTARIO
+   ========================================================= */
+
+.inventory-review-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 15px;
+  margin: 0 0 18px;
+  background: #f0f3ed;
+  border: 1px solid #dbe3d6;
+  border-radius: 15px;
+}
+.inventory-review-prompt strong,
+.inventory-review-prompt span { display: block; }
+.inventory-review-prompt strong { color: #66735f; font-size: 13px; margin-bottom: 3px; }
+.inventory-review-prompt span { color: #858981; font-size: 12px; line-height: 1.4; }
+.menu-inventory-review-button { white-space: nowrap; }
+.inventory-review-modal {
+  position: fixed; inset: 0; z-index: 145; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+}
+.inventory-review-modal.open { display: flex; }
+.inventory-review-overlay {
+  position: absolute; inset: 0; background: rgba(30,30,25,.52); backdrop-filter: blur(2px);
+}
+.inventory-review-box {
+  position: relative; z-index: 1; width: min(760px,100%); max-height: 92vh; overflow-y: auto;
+  background: #fffdf9; border-radius: 24px; padding: 26px; box-shadow: 0 25px 70px rgba(0,0,0,.20);
+}
+.inventory-review-week { margin: 5px 0 0; color: #858981; font-size: 12px; }
+.inventory-review-help { padding: 13px 14px; border-radius: 13px; background: #f5f2ec; color: #70756d; font-size: 12px; line-height: 1.55; margin-bottom: 16px; }
+.inventory-review-content { display: grid; gap: 14px; }
+.inventory-review-section { padding: 16px; border: 1px solid #e5e1d8; border-radius: 17px; background: #fffdf9; }
+.inventory-review-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.inventory-review-section-head h3 { margin: 0; font-family: Georgia, serif; font-size: 21px; }
+.inventory-review-section-head span { color: #858981; font-size: 11px; }
+.inventory-review-items { display: grid; gap: 8px; }
+.inventory-review-item { display: grid; grid-template-columns: 1fr auto; gap: 15px; align-items: center; padding: 13px; border-radius: 13px; background: #f5f2ec; }
+.inventory-review-item.is-kept { opacity: .68; }
+.inventory-review-item.is-finished { background: #e4e9df; }
+.inventory-review-main { display: grid; gap: 4px; min-width: 0; }
+.inventory-review-main strong { color: #343832; }
+.inventory-review-main span { color: #858981; font-size: 11px; }
+.inventory-review-main span b { color: #66735f; }
+.inventory-review-actions { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.inventory-review-actions button { white-space: nowrap; }
+.inventory-review-finished { color: #66735f; font-size: 13px; font-weight: 600; }
+.inventory-review-empty { color: #858981; font-size: 12px; padding: 8px 0 2px; }
+@media(max-width:700px) {
+  .inventory-review-prompt { align-items: stretch; flex-direction: column; }
+  .inventory-review-prompt button { width: 100%; }
+  .inventory-review-box { padding: 21px; border-radius: 19px; }
+  .inventory-review-item { grid-template-columns: 1fr; }
+  .inventory-review-actions { justify-content: stretch; flex-direction: column; }
+  .inventory-review-actions button { width: 100%; }
+}

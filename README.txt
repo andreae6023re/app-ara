@@ -1,7 +1,5 @@
-ARA · Importar inventario v1
+ARA · Repaso semanal de inventario v1
 
-Sustituye el index.html por este y añade inventario-importacion.js al repositorio.
-No sustituye app.js ni styles.css.
-
-El botón permite importar XLSX/XLS, CSV, TXT o JSON.
-La importación añade productos al inventario actual y no elimina los existentes.
+Añade un repaso de despensa y congelador basado en las recetas usadas durante la semana.
+Permite marcar entradas como terminadas (se eliminan del inventario) o mantenerlas.
+Incluye el botón de importar inventario ya existente.

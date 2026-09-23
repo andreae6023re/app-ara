@@ -44,6 +44,7 @@ function showPage(id) {
   }
 
   if (id === "menu") {
+    setupInventoryReviewPrompt();
     loadMenu();
   }
 
@@ -2259,6 +2260,326 @@ async function removeRecipeFromMenu(date, mealType) {
 }
 
 
+
+/* =========================================================
+   REPASO SEMANAL DE INVENTARIO
+   ========================================================= */
+
+function formatInventoryReviewLocation(location) {
+  return location === "congelador" ? "🧊 Congelador" : "🥫 Despensa";
+}
+
+function getInventoryReviewWeekLabel(weekStart) {
+  const end = addDays(weekStart, 6);
+  return `${weekStart.toLocaleDateString("es-ES", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("es-ES", { day: "numeric", month: "short" })}`;
+}
+
+async function getInventoryUsageForWeek(weekStart) {
+  const weekISO = dateToISO(weekStart);
+
+  const { data: plans, error: planError } = await supabaseClient
+    .from("meal_plans")
+    .select("id")
+    .eq("week_start", weekISO)
+    .limit(1);
+
+  if (planError) throw planError;
+
+  const plan = plans?.[0];
+  if (!plan) return { items: [], hasMenu: false };
+
+  const { data: menuItems, error: menuError } = await supabaseClient
+    .from("meal_plan_items")
+    .select("recipe_id")
+    .eq("meal_plan_id", plan.id)
+    .in("meal_type", ["comida", "cena"])
+    .not("recipe_id", "is", null);
+
+  if (menuError) throw menuError;
+
+  const recipeIds = [...new Set((menuItems || []).map(item => item.recipe_id).filter(Boolean))];
+  if (!recipeIds.length) return { items: [], hasMenu: true };
+
+  const { data: recipeIngredients, error: recipeIngredientsError } = await supabaseClient
+    .from("recipe_ingredients")
+    .select(`
+      recipe_id,
+      quantity,
+      unit,
+      ingredients (
+        id,
+        name,
+        default_unit
+      )
+    `)
+    .in("recipe_id", recipeIds);
+
+  if (recipeIngredientsError) throw recipeIngredientsError;
+
+  const requirements = new Map();
+
+  for (const row of recipeIngredients || []) {
+    const ingredient = row.ingredients;
+    if (!ingredient?.id) continue;
+
+    const quantity = row.quantity === null || row.quantity === undefined ? null : Number(row.quantity);
+    const unit = row.unit || ingredient.default_unit || "unidad";
+    const unitInfo = shoppingUnitInfo(unit);
+    const key = `${ingredient.id}::${unitInfo.group}`;
+
+    if (!requirements.has(key)) {
+      requirements.set(key, {
+        ingredientId: ingredient.id,
+        name: ingredient.name,
+        quantity,
+        unit,
+        unitInfo,
+        unknownQuantity: quantity === null
+      });
+    } else {
+      const current = requirements.get(key);
+      if (quantity === null || current.quantity === null) {
+        current.quantity = null;
+        current.unknownQuantity = true;
+      } else {
+        current.quantity += quantity;
+      }
+    }
+  }
+
+  const { data: inventory, error: inventoryError } = await supabaseClient
+    .from("inventory")
+    .select(`
+      id,
+      ingredient_id,
+      quantity,
+      unit,
+      location,
+      notes,
+      created_at,
+      ingredients (name)
+    `)
+    .in("location", ["despensa", "congelador"])
+    .order("created_at", { ascending: true });
+
+  if (inventoryError) throw inventoryError;
+
+  const rows = [];
+
+  for (const item of inventory || []) {
+    const name = item.ingredients?.name || "Producto";
+    const unit = item.unit || "unidad";
+    const unitInfo = shoppingUnitInfo(unit);
+    const key = `${item.ingredient_id}::${unitInfo.group}`;
+    const requirement = requirements.get(key);
+    if (!requirement) continue;
+
+    const inventoryQuantity = item.quantity === null || item.quantity === undefined ? null : Number(item.quantity);
+    let usedQuantity = null;
+    let remainingQuantity = null;
+
+    if (inventoryQuantity !== null && requirement.quantity !== null) {
+      const inventoryBase = inventoryQuantity * unitInfo.factor;
+      const requiredBase = requirement.quantity * requirement.unitInfo.factor;
+      const usedBase = Math.min(inventoryBase, requiredBase);
+      usedQuantity = usedBase / unitInfo.factor;
+      remainingQuantity = Math.max(0, inventoryBase - usedBase) / unitInfo.factor;
+      requirement.quantity = Math.max(0, requirement.quantity - (usedBase / requirement.unitInfo.factor));
+    }
+
+    rows.push({
+      id: item.id,
+      name,
+      location: item.location,
+      currentQuantity: inventoryQuantity,
+      unit,
+      usedQuantity,
+      remainingQuantity,
+      unknownQuantity: requirement.unknownQuantity
+    });
+  }
+
+  return { items: rows, hasMenu: true };
+}
+
+function inventoryReviewAmount(quantity, unit) {
+  if (quantity === null || quantity === undefined) return "Cantidad no calculable";
+  return formatShoppingAmount(Number(quantity), unit);
+}
+
+function renderInventoryUsageReview(weekStart, items) {
+  document.querySelectorAll(".inventory-review-modal").forEach(modal => modal.remove());
+
+  const modal = document.createElement("div");
+  modal.className = "inventory-review-modal open";
+
+  const grouped = {
+    despensa: items.filter(item => item.location === "despensa"),
+    congelador: items.filter(item => item.location === "congelador")
+  };
+
+  const renderGroup = (location, label) => {
+    const group = grouped[location];
+    if (!group.length) {
+      return `
+        <section class="inventory-review-section">
+          <div class="inventory-review-section-head">
+            <h3>${label}</h3>
+            <span>Sin productos usados</span>
+          </div>
+          <div class="inventory-review-empty">No se han detectado productos de esta zona usados por el menú.</div>
+        </section>
+      `;
+    }
+
+    return `
+      <section class="inventory-review-section">
+        <div class="inventory-review-section-head">
+          <h3>${label}</h3>
+          <span>${group.length} ${group.length === 1 ? "entrada" : "entradas"}</span>
+        </div>
+        <div class="inventory-review-items">
+          ${group.map(item => `
+            <div class="inventory-review-item" data-inventory-id="${item.id}">
+              <div class="inventory-review-main">
+                <strong>${escapeHtml(item.name)}</strong>
+                <span>Tenías: <b>${escapeHtml(inventoryReviewAmount(item.currentQuantity, item.unit))}</b></span>
+                <span>Uso estimado: <b>${item.usedQuantity === null ? "según receta" : escapeHtml(inventoryReviewAmount(item.usedQuantity, item.unit))}</b></span>
+                ${item.usedQuantity !== null && item.remainingQuantity !== null
+                  ? `<span>Resto estimado: <b>${escapeHtml(inventoryReviewAmount(item.remainingQuantity, item.unit))}</b></span>`
+                  : ""}
+              </div>
+              <div class="inventory-review-actions">
+                <button type="button" class="secondary inventory-review-ignore" data-id="${item.id}">Aún queda</button>
+                <button type="button" class="primary inventory-review-finish" data-id="${item.id}">✓ Marcar terminado</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  };
+
+  modal.innerHTML = `
+    <div class="inventory-review-overlay"></div>
+    <div class="inventory-review-box">
+      <div class="inventory-modal-header">
+        <div>
+          <small>REPASO SEMANAL</small>
+          <h2>¿Qué se ha terminado?</h2>
+          <p class="inventory-review-week">Semana ${escapeHtml(getInventoryReviewWeekLabel(weekStart))}</p>
+        </div>
+        <button type="button" class="modal-close inventory-review-close">×</button>
+      </div>
+      <div class="inventory-review-help">
+        ARA cruza las recetas del menú con tu despensa y congelador. La cantidad usada es una estimación según las cantidades de las recetas. Pulsa <strong>✓ Marcar terminado</strong> solo en aquello que realmente se haya acabado. “Aún queda” deja la entrada sin cambios.
+      </div>
+      <div class="inventory-review-content">
+        ${renderGroup("despensa", "🥫 Despensa")}
+        ${renderGroup("congelador", "🧊 Congelador")}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="secondary inventory-review-close-button">Cerrar</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  const close = () => modal.remove();
+  modal.querySelector(".inventory-review-overlay").addEventListener("click", close);
+  modal.querySelector(".inventory-review-close").addEventListener("click", close);
+  modal.querySelector(".inventory-review-close-button").addEventListener("click", close);
+
+  modal.querySelectorAll(".inventory-review-ignore").forEach(button => {
+    button.addEventListener("click", () => {
+      const row = modal.querySelector(`.inventory-review-item[data-inventory-id="${button.dataset.id}"]`);
+      if (row) {
+        row.classList.add("is-kept");
+        button.disabled = true;
+        button.textContent = "✓ Se mantiene";
+      }
+    });
+  });
+
+  modal.querySelectorAll(".inventory-review-finish").forEach(button => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      button.textContent = "Eliminando…";
+
+      const { error } = await supabaseClient
+        .from("inventory")
+        .delete()
+        .eq("id", Number(button.dataset.id));
+
+      if (error) {
+        console.error("Error marcando inventario como terminado:", error);
+        button.disabled = false;
+        button.textContent = "✓ Marcar terminado";
+        alert("No se pudo marcar como terminado.\n\n" + error.message);
+        return;
+      }
+
+      const row = modal.querySelector(`.inventory-review-item[data-inventory-id="${button.dataset.id}"]`);
+      if (row) {
+        const name = row.querySelector(".inventory-review-main strong")?.textContent || "Producto";
+        row.classList.add("is-finished");
+        row.innerHTML = `<div class="inventory-review-finished">✅ <strong>${escapeHtml(name)}</strong> marcado como terminado y eliminado del inventario.</div>`;
+      }
+
+      if (typeof loadInventory === "function") await loadInventory();
+      if (typeof loadHomeDashboard === "function") await loadHomeDashboard();
+    });
+  });
+}
+
+async function openInventoryUsageReview(weekStart = menuWeekStart) {
+  const button = document.querySelector("#menu .menu-inventory-review-button");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Cargando…";
+  }
+
+  try {
+    const result = await getInventoryUsageForWeek(weekStart);
+    if (!result.hasMenu) {
+      alert("No hay menú guardado para esa semana.");
+      return;
+    }
+    if (!result.items.length) {
+      alert("No he encontrado productos de despensa o congelador usados por el menú de esa semana.");
+      return;
+    }
+    renderInventoryUsageReview(weekStart, result.items);
+  } catch (error) {
+    console.error("Error preparando el repaso de inventario:", error);
+    alert("No se pudo preparar el repaso de inventario.\n\n" + (error.message || "Error desconocido"));
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "📦 Repasar inventario";
+    }
+  }
+}
+
+function setupInventoryReviewPrompt() {
+  const prompt = document.getElementById("inventory-review-prompt");
+  const button = document.getElementById("menu-review-inventory-button");
+  if (!prompt || !button) return;
+
+  const day = new Date().getDay();
+  if (day !== 0 && day !== 1) {
+    prompt.hidden = true;
+    return;
+  }
+
+  const previousWeek = addDays(getMonday(new Date()), -7);
+  prompt.hidden = false;
+  button.onclick = () => openInventoryUsageReview(previousWeek);
+}
+
+window.openInventoryUsageReview = openInventoryUsageReview;
+
+
 /* =========================================================
    GENERADOR AUTOMÁTICO DE MENÚ
    ========================================================= */
@@ -2456,6 +2777,8 @@ async function generateWeeklyMenu() {
 function setupMenuControls() {
   const menuPage = document.getElementById("menu");
   if (!menuPage) return;
+
+  setupInventoryReviewPrompt();
 
   const generateButton = menuPage.querySelector(".menu-generate-button");
   if (generateButton) {
